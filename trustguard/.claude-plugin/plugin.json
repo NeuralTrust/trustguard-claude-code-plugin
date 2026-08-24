@@ -1,0 +1,25 @@
+{
+  "name": "trustguard",
+  "version": "0.1.0",
+  "description": "AI firewall for Claude Code via lifecycle hooks, plus TrustGate MCP Gateway. For organizations that cannot use Anthropic Inference Hooks (Enterprise org hook).",
+  "author": {
+    "name": "NeuralTrust",
+    "email": "hello@neuraltrust.ai",
+    "url": "https://neuraltrust.ai"
+  },
+  "homepage": "https://neuraltrust.ai",
+  "repository": "https://github.com/NeuralTrust/trustguard-claude-code-plugin",
+  "license": "Apache-2.0",
+  "keywords": [
+    "security",
+    "firewall",
+    "trustguard",
+    "trustgate",
+    "mcp",
+    "enterprise",
+    "hooks"
+  ],
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json",
+  "skills": "./skills/"
+}

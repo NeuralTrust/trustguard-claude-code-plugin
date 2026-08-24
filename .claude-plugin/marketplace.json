@@ -1,0 +1,17 @@
+{
+  "name": "neuraltrust",
+  "owner": {
+    "name": "NeuralTrust",
+    "email": "hello@neuraltrust.ai"
+  },
+  "metadata": {
+    "description": "NeuralTrust plugins for Claude Code: TrustGuard AI firewall (local hooks) and TrustGate MCP Gateway."
+  },
+  "plugins": [
+    {
+      "name": "trustguard",
+      "source": "./trustguard",
+      "description": "TrustGuard AI firewall for Claude Code (local hooks) plus TrustGate MCP Gateway. For orgs without Anthropic Inference Hooks."
+    }
+  ]
+}
