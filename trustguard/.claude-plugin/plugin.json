@@ -1,7 +1,7 @@
 {
   "name": "trustguard",
-  "version": "0.1.8",
-  "description": "TrustGuard AI firewall for Claude Code (lifecycle hooks) plus TrustGate MCP Gateway. MCP URL via TRUSTGATE_MCP_URL env (settings.json env block). Collector key: ~/.trustguard/claude-code.json or Kandji.",
+  "version": "0.1.10",
+  "description": "TrustGuard AI firewall for Claude Code (lifecycle hooks) plus TrustGate MCP Gateway. Claude Code prompts for the MCP URL when you enable the plugin; auth is OAuth.",
   "author": {
     "name": "NeuralTrust",
     "email": "hello@neuraltrust.ai",
@@ -20,6 +20,19 @@
     "hooks"
   ],
   "hooks": "./hooks/hooks.json",
-  "mcpServers": "./.mcp.json",
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "userConfig": {
+    "trustgate_mcp_url": {
+      "type": "string",
+      "title": "TrustGate MCP URL",
+      "description": "Full MCP endpoint from TrustGate Connect (e.g. https://host/consumer-slug/mcp). Auth is OAuth — no API key.",
+      "required": true
+    }
+  },
+  "mcpServers": {
+    "TrustGate": {
+      "type": "http",
+      "url": "${user_config.trustgate_mcp_url}"
+    }
+  }
 }

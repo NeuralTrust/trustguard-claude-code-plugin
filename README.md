@@ -70,37 +70,44 @@ make install-local
 claude --plugin-dir ./trustguard
 ```
 
-## TrustGate MCP (bundled) — set the URL via environment variables
+## TrustGate MCP (bundled) — URL only, OAuth
 
-The plugin ships a **TrustGate** MCP server that reads its endpoint from
-environment variables (`${TRUSTGATE_MCP_URL:-}`). Until the variable is set,
-`/mcp` shows the server as `not configured` — expected, not an error.
-
-Add the variables to the `env` block of `~/.claude/settings.json`:
+Only the MCP URL is required. Auth is OAuth against the endpoint (no API key,
+no gateway slug headers).
 
 ```json
-{
-  "env": {
-    "TRUSTGATE_MCP_URL": "https://HOST/CONSUMER-SLUG/mcp",
-    "TRUSTGATE_MCP_API_KEY": "YOUR_CONSUMER_KEY"
+"userConfig": {
+  "trustgate_mcp_url": {
+    "type": "string",
+    "title": "TrustGate MCP URL",
+    "required": true
+  }
+},
+"mcpServers": {
+  "TrustGate": {
+    "type": "http",
+    "url": "${user_config.trustgate_mcp_url}"
   }
 }
 ```
 
-Optional: `TRUSTGATE_GATEWAY_SLUG` (hybrid / private data planes). You can also
-export the same variables in your shell profile, or push them org-wide via
-managed settings (MDM).
+**How to set the URL**
 
-Restart the session (or `/reload-plugins`), then verify with `/mcp`:
-**TrustGate** should show `connected`.
+1. **On enable** — Claude Code prompts for **TrustGate MCP URL**.
+2. **CLI**:
 
-Why env vars and not plugin options: `${user_config.*}` substitution inside
-plugin `mcpServers` configs fails silently in current Claude Code
-([anthropics/claude-code#51573](https://github.com/anthropics/claude-code/issues/51573)),
-and the Desktop "Add custom connector" dialog locks plugin-provided URLs.
-Environment expansion `${VAR:-default}` is the officially supported path.
+```bash
+claude plugin install trustguard@neuraltrust \
+  --config trustgate_mcp_url=https://HOST/CONSUMER-SLUG/mcp
+```
 
-MCP key = TrustGate **consumer** key, never the TrustGuard `tgk_…`.
+3. **Already installed** — `/plugin` → Installed → **trustguard** → configure
+   options, then `/reload-plugins`. Complete OAuth from `/mcp` if prompted.
+
+Do **not** paste the URL into the generic “Add custom connector” dialog.
+
+Verify with `/mcp`: **TrustGate** connected. Never put the TrustGuard `tgk_…`
+collector key on the MCP URL.
 
 ## Event → evaluation mapping
 
