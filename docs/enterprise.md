@@ -1,16 +1,16 @@
 # Enterprise deployment notes
 
-## Kandji (macOS) — recommended
+## Kandji (macOS) — collector + binary
 
 Use the ready-made Custom Script:
 
-- **[mdm/kandji/README.md](../mdm/kandji/README.md)** — Library Item steps  
-- **`mdm/kandji/install-trustguard-claude-code.sh`** — install binary + managed key  
-- **`mdm/kandji/audit-trustguard-claude-code.sh`** — optional Audit companion  
+- **[mdm/kandji/README.md](../mdm/kandji/README.md)** — Library Item steps
+- **`mdm/kandji/install-trustguard-claude-code.sh`** — install binary + managed key
+- **`mdm/kandji/audit-trustguard-claude-code.sh`** — optional Audit companion
 
 That path is the supported org rollout for collector `tgk_…` + binary.
 
-## Managed config
+## Managed config (TrustGuard collector)
 
 When `api_key` is set in the system file, the binary locks `api_key`,
 `data_url`, and `fail_mode` against user file and env overrides.
@@ -41,20 +41,64 @@ still live in `~/.trustguard/claude-code.json`.
 | 3 | Versioned download under `~/.trustguard/bin` |
 | MDM | `/Library/Application Support/TrustGuard/bin/trustguard-claude-code` + PATH symlink |
 
-## Plugin distribution
+## Plugin + TrustGate MCP (Claude managed settings)
 
-Kandji does **not** enable the Claude plugin. Separately:
+Kandji does **not** enable the Claude plugin. Deploy Claude Code
+[managed settings](https://code.claude.com/docs/en/managed-settings) so the
+plugin is on and the MCP URL is pre-filled (`userConfig` →
+`${user_config.trustgate_mcp_url}`):
 
-- Org marketplace + enable **trustguard**, or  
-- `claude --plugin-dir` for dogfood  
+```json
+{
+  "enabledPlugins": {
+    "trustguard@neuraltrust": true
+  },
+  "extraKnownMarketplaces": {
+    "neuraltrust": {
+      "source": {
+        "source": "github",
+        "repo": "NeuralTrust/trustguard-claude-code-plugin"
+      }
+    }
+  },
+  "pluginConfigs": {
+    "trustguard@neuraltrust": {
+      "options": {
+        "trustgate_mcp_url": "https://HOST/CONSUMER-SLUG/mcp"
+      }
+    }
+  }
+}
+```
+
+| Key | Role |
+| --- | --- |
+| `enabledPlugins` | Force **trustguard@neuraltrust** on for every user |
+| `extraKnownMarketplaces` | Register this GitHub marketplace org-wide |
+| `pluginConfigs.*.options` | Pre-set `userConfig` (MCP URL). Shape from [settings-reference](https://code.claude.com/docs/en/settings-reference#pluginconfigs) |
+
+`pluginConfigs` is **user or managed** only. Project settings are ignored so a
+cloned repo cannot inject plugin options into MCP/hooks.
+
+**Do not** have users open “Add custom connector” for TrustGate. That UI is
+unrelated to plugin `userConfig` and shows the locked
+`${user_config.trustgate_mcp_url}` placeholder. Install/enable via `/plugin`
+or managed `enabledPlugins` only.
+
+Per-user interactive path (no managed URL):
+
+```bash
+claude plugin install trustguard@neuraltrust \
+  --config trustgate_mcp_url=https://HOST/CONSUMER-SLUG/mcp
+```
+
+Auth to the MCP endpoint is OAuth (no API key in the plugin).
 
 ## Collector key is not in the Claude Plugins UI
 
-Org **Plugins → Trustguard** shows Skills / Connectors / Hooks only. Credentials
-come from the managed JSON (Kandji) or `~/.trustguard/claude-code.json` (BYO).
-
-TrustGate MCP: Claude **Connectors** with a real HTTPS MCP URL — not the
-collector key file.
+Org **Plugins → Trustguard** shows Skills / Connectors / Hooks. The collector
+`tgk_…` never appears there — it comes from the managed TrustGuard JSON
+(Kandji) or `~/.trustguard/claude-code.json`.
 
 ## Inference Hooks vs this plugin
 

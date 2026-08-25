@@ -1,7 +1,7 @@
 {
   "name": "trustguard",
-  "version": "0.1.10",
-  "description": "TrustGuard AI firewall for Claude Code (lifecycle hooks) plus TrustGate MCP Gateway. Claude Code prompts for the MCP URL when you enable the plugin; auth is OAuth.",
+  "version": "0.1.11",
+  "description": "TrustGuard AI firewall for Claude Code (lifecycle hooks) plus TrustGate MCP Gateway. Install via /plugin (not Add custom connector). MCP URL is userConfig; auth is OAuth.",
   "author": {
     "name": "NeuralTrust",
     "email": "hello@neuraltrust.ai",

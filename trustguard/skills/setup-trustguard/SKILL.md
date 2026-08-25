@@ -1,16 +1,23 @@
 ---
 name: setup-trustguard
-description: Configure the TrustGuard collector key and the TrustGate MCP URL for this plugin. Use when the user enables Trustguard, asks where to enter the MCP URL or tgk_ key, or TrustGate is missing / not configured in /mcp.
+description: Configure the TrustGuard collector key and the TrustGate MCP URL. Use when the user enables Trustguard, sees a locked ${user_config…} URL in Add custom connector, or TrustGate is missing in /mcp.
 ---
 
 # Configure TrustGuard + TrustGate
 
 | What | Where |
 | --- | --- |
-| TrustGuard collector `tgk_…` (hooks) | `~/.trustguard/claude-code.json` or Kandji MDM |
-| TrustGate MCP URL | Plugin `userConfig` — prompted on enable; auth is OAuth |
+| TrustGuard collector `tgk_…` | `~/.trustguard/claude-code.json` or Kandji — never Plugins UI |
+| TrustGate MCP URL | Plugin `userConfig` via `/plugin install` — never “Add custom connector” |
 
-## 1. Collector key (hooks / firewall)
+## Wrong surface (ignore)
+
+If Claude.ai / Desktop shows **Add custom connector** with URL
+`${user_config.trustgate_mcp_url}` grayed out, that is **not** the plugin
+`userConfig` form. Cancel it. The plugin already owns TrustGate; reinstall or
+enable the plugin so Claude substitutes the value.
+
+## 1. Collector key (hooks)
 
 ```bash
 mkdir -p ~/.trustguard && chmod 700 ~/.trustguard
@@ -24,38 +31,52 @@ EOF
 chmod 600 ~/.trustguard/claude-code.json
 ```
 
-Enterprise: Kandji writes `/Library/Application Support/TrustGuard/claude-code.json` (locked).
+## 2. Install the plugin (sets MCP URL)
 
-## 2. TrustGate MCP URL — plugin userConfig (URL only)
+```text
+/plugin install trustguard@neuraltrust
+```
 
-Declared in `plugin.json` as `userConfig.trustgate_mcp_url` and substituted as
-`${user_config.trustgate_mcp_url}`. No API key or gateway slug — Claude Code
-completes OAuth against the MCP endpoint.
+Claude prompts for **TrustGate MCP URL** (`https://host/consumer-slug/mcp`).
+OAuth only — no API key.
 
-### First enable (prompt)
-
-Claude Code asks for **TrustGate MCP URL** (`https://host/consumer-slug/mcp`).
-
-### Non-interactive (CLI)
+CLI:
 
 ```bash
 claude plugin install trustguard@neuraltrust \
   --config trustgate_mcp_url=https://HOST/CONSUMER-SLUG/mcp
 ```
 
-If already installed: `/plugin` → Installed → **trustguard** → configure
-options, then `/reload-plugins`. Complete OAuth from `/mcp` if prompted.
+Local path while developing:
 
-Do **not** paste the URL into the generic “Add custom connector” dialog.
+```text
+/plugin install /path/to/trustguard-claude-code-plugin/trustguard
+```
+
+Then `/reload-plugins` if needed. Complete OAuth from `/mcp`.
+
+### Org-wide (no per-user prompt)
+
+Managed settings (`pluginConfigs` uses nested `options`):
+
+```json
+{
+  "enabledPlugins": {
+    "trustguard@neuraltrust": true
+  },
+  "pluginConfigs": {
+    "trustguard@neuraltrust": {
+      "options": {
+        "trustgate_mcp_url": "https://HOST/CONSUMER-SLUG/mcp"
+      }
+    }
+  }
+}
+```
 
 ## 3. Verify
 
-- `/mcp` → **TrustGate** connected (OAuth done) and listing tools.
-- Hooks:
+- `/mcp` → TrustGate connected (OAuth done).
+- Hooks fire; TrustGuard shows `source.application=claude-code-plugin`.
 
-```bash
-echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"session_id":"t1"}' \
-  | trustguard-claude-code hook
-```
-
-`tgk_…` is only the TrustGuard collector key (file/MDM). Never put it on the MCP URL.
+`tgk_…` is only the collector key. Never put it on the MCP URL.

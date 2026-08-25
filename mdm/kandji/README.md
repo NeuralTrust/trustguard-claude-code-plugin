@@ -6,8 +6,8 @@ keys into Claude.
 
 | Delivers | Does **not** deliver |
 | --- | --- |
-| Binary `trustguard-claude-code` | Claude org **plugin** enable (do that in claude.ai → Plugins) |
-| Managed config with collector key | TrustGate MCP connector (optional, separate) |
+| Binary `trustguard-claude-code` | Claude plugin enable (use managed settings / `/plugin`) |
+| Managed config with collector key | TrustGate MCP URL (`pluginConfigs` in Claude managed settings) |
 
 ## Prerequisites
 
@@ -108,26 +108,47 @@ echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command"
 In Claude: **Plugins → Trustguard → Hooks** must list Prompt submit / Pre / Post.
 Activity in TrustGuard should show `source.application=claude-code-plugin`.
 
-## Claude plugin (not Kandji)
+## Claude plugin + TrustGate MCP (not Kandji)
 
-Kandji does **not** install the Claude plugin. Org admin:
+Kandji does **not** install the Claude plugin or set the MCP URL. Deploy Claude
+Code [managed settings](https://code.claude.com/docs/en/managed-settings)
+(MDM file drop or claude.ai admin) alongside this script:
 
-1. claude.ai → org **Plugins** → marketplace synced  
-2. Enable **trustguard** for the team  
+```json
+{
+  "enabledPlugins": {
+    "trustguard@neuraltrust": true
+  },
+  "extraKnownMarketplaces": {
+    "neuraltrust": {
+      "source": {
+        "source": "github",
+        "repo": "NeuralTrust/trustguard-claude-code-plugin"
+      }
+    }
+  },
+  "pluginConfigs": {
+    "trustguard@neuraltrust": {
+      "options": {
+        "trustgate_mcp_url": "https://HOST/CONSUMER-SLUG/mcp"
+      }
+    }
+  }
+}
+```
 
-Without the plugin, the binary sits idle (no hooks fire).
+- `enabledPlugins` — force the plugin on (hooks fire).
+- `pluginConfigs.*.options` — pre-fill `userConfig` MCP URL (no per-user prompt).
+  Shape is nested under `options` per Claude settings-reference.
+- Auth to TrustGate is OAuth. Do **not** use “Add custom connector”.
+- Do not put `tgk_…` in `pluginConfigs`.
 
-## TrustGate MCP (optional)
-
-URL only — OAuth handles auth. Prompted on enable, or non-interactive:
+Without the plugin, the binary sits idle. Per-user alternative:
 
 ```bash
 claude plugin install trustguard@neuraltrust \
-  --config trustgate_mcp_url=https://HOST/SLUG/mcp
+  --config trustgate_mcp_url=https://HOST/CONSUMER-SLUG/mcp
 ```
-
-Org-wide URL defaults can go under `pluginConfigs` in managed settings.
-Do not put `tgk_…` there.
 
 ## Uninstall (manual)
 
