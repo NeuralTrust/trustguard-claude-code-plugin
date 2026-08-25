@@ -1,121 +1,81 @@
 ---
 name: setup-trustguard
-description: Set up the TrustGuard AI firewall for Claude Code — install the trustguard-claude-code binary, configure the TrustGuard endpoint and API key, and verify the hooks work. Use when the user installs the TrustGuard plugin, asks to configure TrustGuard, or when trustguard-claude-code is missing from the PATH.
+description: Configure the TrustGuard collector API key and data URL for the Claude Code plugin hooks. Use when the user enables Trustguard, asks where to put the tgk_ key, or hooks allow without evaluating.
 ---
 
-# Set up TrustGuard for Claude Code
+# Configure TrustGuard (collector key)
 
-The TrustGuard plugin gates this agent with hooks that run `trustguard-claude-code hook`
-on `UserPromptSubmit`, `PreToolUse` and `PostToolUse`.
+The **collector API key is not in the Claude Plugins UI** (Skills / Connectors / Hooks tabs). Those tabs only show what the plugin ships. Hooks read credentials from a **local config file** (or env / MDM).
 
-**When to use this plugin vs Anthropic Inference Hooks**
+TrustGate MCP is separate: add it under **Connectors** with a real `https://…/mcp` URL — not via this plugin.
 
-| Path | Who |
+## 1. Create the config file
+
+```bash
+mkdir -p ~/.trustguard
+chmod 700 ~/.trustguard
+cat > ~/.trustguard/claude-code.json <<'EOF'
+{
+  "data_url": "https://YOUR_TRUSTGUARD_DATA_PLANE",
+  "api_key": "tgk_YOUR_COLLECTOR_KEY",
+  "fail_mode": "closed"
+}
+EOF
+chmod 600 ~/.trustguard/claude-code.json
+```
+
+| Field | Value |
 | --- | --- |
-| Anthropic **Inference Hooks** (`/v1/evaluate/claude`) | Claude **Enterprise** orgs (org-level hook in Anthropic) |
-| **This plugin** (local lifecycle hooks) | Teams on Claude Code without Enterprise org hooks — same model as Cursor/Codex plugins |
+| `data_url` | TrustGuard data-plane base URL (no `/v1/evaluate`) |
+| `api_key` | Collector key `tgk_…` from TrustGuard → Claude Code / IDE collector |
+| `fail_mode` | `open` (allow if TG down) or `closed` (deny) |
 
-Enterprise orgs can ship one Claude Code collector for the whole company: employees do
-**not** need a NeuralTrust account. Walk the user through the steps below.
+Do **not** use Inference Hook secrets (`whsec_…`) or TrustGate MCP consumer keys here.
 
-## 1. Check for MDM (enterprise) first
-
-Look for the managed config file:
-
-- macOS: `/Library/Application Support/TrustGuard/claude-code.json`
-- Linux: `/etc/trustguard/claude-code.json`
-- Windows: `%ProgramData%\TrustGuard\claude-code.json`
-
-If it exists and contains an `api_key`, setup is already done by IT. Tell the
-user their org firewall is managed — they cannot (and should not) override
-`api_key`, `data_url` or `fail_mode`. Skip to step 3 (verify). Soft prefs such
-as `transform_action` or `timeout_ms` can still live in `~/.trustguard/claude-code.json`.
-
-## 2. Install the binary (if needed)
-
-On macOS/Linux this is usually automatic: the bootstrap hook downloads the
-pinned release into `~/.trustguard/bin` (SHA-256 verified) on the first event.
-Check whether a binary is already available:
+## 2. Install the hook binary (if needed)
 
 ```bash
 trustguard-claude-code version || ls ~/.trustguard/bin/
 ```
 
-Install manually only if both are missing:
+From a clone of the plugin repo: `make install-local`.  
+Or wait for the bootstrap script to download a release binary into `~/.trustguard/bin`.
 
-- **From a release**: download the binary for the user's OS/arch from
-  https://github.com/NeuralTrust/trustguard-claude-code-plugin/releases and place
-  it on the PATH (e.g. `/usr/local/bin/trustguard-claude-code`, `chmod +x`).
-- **From source** (requires Go): in a clone of this repo run `make build`,
-  then copy `bin/trustguard-claude-code` onto the PATH.
-
-For local plugin testing from a clone:
+## 3. Verify
 
 ```bash
-make install-local
-claude --plugin-dir ./trustguard
-```
-
-## 3. Configure the connection (BYO / non-MDM only)
-
-Only when step 1 found no managed key.
-
-### Preferred: plugin enable prompt (`userConfig`)
-
-When the user enables **trustguard** (org Plugins marketplace or
-`/plugin install`), Claude Code should prompt for:
-
-1. **TrustGuard data URL** — data-plane base URL  
-2. **TrustGuard collector API key** — `tgk_…` (sensitive; keychain)  
-3. **Fail mode** — `open` / `closed`  
-4. **TrustGate MCP URL** — optional  
-5. **TrustGate MCP API key** — optional (not `tgk_…`)  
-6. **TrustGate gateway slug** — optional hybrid only  
-
-If they already installed without filling these, re-open plugin settings /
-re-enable the plugin, or set options via CLI:
-
-```bash
-claude plugin enable trustguard@neuraltrust \
-  --config trustguard_data_url=https://… \
-  --config trustguard_api_key=tgk_… \
-  --config trustgate_mcp_url=https://…/mcp
-```
-
-Do **not** ask them to paste secrets into the chat.
-
-### Fallback: config file
-
-```json
-{
-  "data_url": "https://<trustguard-data-plane>",
-  "api_key": "tgk_REPLACE_ME",
-  "fail_mode": "closed"
-}
-```
-
-Path: `~/.trustguard/claude-code.json`, `chmod 600`.
-
-## 4. Verify
-
-```bash
-echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"echo hello"},"session_id":"sess_test"}' \
+echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"session_id":"t1"}' \
   | trustguard-claude-code hook
 ```
 
-Empty `{}` or no `permissionDecision` means allow. A deny prints
-`hookSpecificOutput.permissionDecision: "deny"`.
+- Missing key → stderr `TRUSTGUARD_API_KEY missing` and `{}` (allow).
+- With key → empty allow or `permissionDecision: "deny"` if blocked.
 
-In Claude Code, run `/hooks` and confirm TrustGuard entries under
-`UserPromptSubmit`, `PreToolUse`, and `PostToolUse`.
+In Claude: Plugins → Trustguard → **Hooks** should list Prompt submit / Pre-tool use / Post-tool use.
 
-## Config reference
+## Enterprise (MDM)
 
-| Field | Env | Default |
-| --- | --- | --- |
-| `data_url` | `TRUSTGUARD_DATA_URL` | `http://localhost:8081` |
-| `api_key` | `TRUSTGUARD_API_KEY` | (required) |
-| `fail_mode` | `TRUSTGUARD_FAIL_MODE` | `open` |
-| `transform_action` | `TRUSTGUARD_TRANSFORM_ACTION` | `ask` |
-| `timeout_ms` | `TRUSTGUARD_TIMEOUT_MS` | `5000` |
-| `consumer_id` | `TRUSTGUARD_CONSUMER_ID` | OS user, prefixed `claude-code:` |
+IT drops the same JSON (with org `api_key`) at:
+
+- macOS: `/Library/Application Support/TrustGuard/claude-code.json`
+- Linux: `/etc/trustguard/claude-code.json`
+- Windows: `%ProgramData%\TrustGuard\claude-code.json`
+
+Then developers cannot override key / data URL / fail mode.
+
+## TrustGate MCP Gateway (optional, separate)
+
+1. Claude → **Connectors** (or plugin Connectors → Add)  
+2. Name: `TrustGate`  
+3. URL: full MCP endpoint from TrustGate Connect, e.g. `https://{host}/{consumer-slug}/mcp`  
+4. API key header if needed: consumer key — **not** `tgk_…`
+
+## Env alternatives
+
+```bash
+export TRUSTGUARD_DATA_URL="https://…"
+export TRUSTGUARD_API_KEY="tgk_…"
+export TRUSTGUARD_FAIL_MODE="closed"
+```
+
+Priority: MDM file → `~/.trustguard/claude-code.json` → env.

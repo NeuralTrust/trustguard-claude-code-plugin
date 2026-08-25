@@ -1,4 +1,4 @@
-.PHONY: build dist test lint install-local uninstall-local
+.PHONY: build dist test lint install-local uninstall-local kandji-syntax
 
 VERSION ?= dev
 
@@ -14,6 +14,13 @@ test: ## Run the test suite
 
 lint: ## Vet the sources
 	go vet ./cli/
+
+kandji-syntax: ## Shell-check Kandji MDM scripts
+	@sh -n mdm/kandji/install-trustguard-claude-code.sh
+	@sh -n mdm/kandji/audit-trustguard-claude-code.sh
+	@bash -n mdm/kandji/install-trustguard-claude-code.sh
+	@bash -n mdm/kandji/audit-trustguard-claude-code.sh
+	@echo "kandji scripts: syntax ok"
 
 # Install binary for local testing. Load the plugin with:
 #   claude --plugin-dir ./trustguard

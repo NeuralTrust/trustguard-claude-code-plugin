@@ -33,9 +33,11 @@ jobs:
           sh -n trustguard/hooks/trustguard-hook.sh
           sh trustguard/hooks/trustguard-hook.cmd
 
+      - name: Kandji MDM scripts
+        run: make kandji-syntax
+
       - name: Plugin manifests
         run: |
           python3 -c "import json; json.load(open('trustguard/.claude-plugin/plugin.json'))"
           python3 -c "import json; json.load(open('trustguard/hooks/hooks.json'))"
           python3 -c "import json; json.load(open('.claude-plugin/marketplace.json'))"
-          python3 -c "import json; json.load(open('trustguard/.mcp.json'))"
