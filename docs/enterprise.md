@@ -112,7 +112,7 @@ Only for **Claude Code lifecycle hooks** (firewall). Not used by org MCP.
 - [ ] Pilot users: Connect OAuth on claude.ai / Desktop / Code
 - [ ] Merge plugin to `main` → **Release** workflow publishes GitHub Release (binaries)
 - [ ] Claude Code managed settings: enable `trustguard@neuraltrust` only
-- [ ] Kandji: collector + binary on Macs that run Claude Code
+- [ ] Kandji: collector + binary; if repo is private set `TRUSTGUARD_GITHUB_TOKEN` + pin version
 - [ ] Pilot Claude Code: `/status`, hooks → TrustGuard `source.application=claude-code-plugin`
 - [ ] Expand Blueprints / org
 

@@ -20,8 +20,18 @@ Full org picture: [`docs/enterprise.md`](../../docs/enterprise.md) and
 2. TrustGate Connect → org MCP URL (`https://host/slug/mcp`).
 3. Feature work merged to `main` — the **Release** workflow tags and uploads
    binaries (or stage offline with `TRUSTGUARD_LOCAL_BINARY`).
-4. Pin `TRUSTGUARD_CLAUDE_CODE_VERSION` in Kandji to the published tag (optional;
-   empty = latest).
+4. Pin `TRUSTGUARD_CLAUDE_CODE_VERSION` (e.g. `0.1.13`).
+5. **Private GitHub repo (this one):** Macs cannot download release assets
+   anonymously (browser URL → **404**). Provide a read-only token:
+
+   | Var | Value |
+   | --- | --- |
+   | `TRUSTGUARD_GITHUB_TOKEN` | Fine-grained PAT: **Contents: Read** on `NeuralTrust/trustguard-claude-code-plugin` (classic: `repo`) |
+
+   Put the token in the secrets file (Option C), not in git.
+
+   Alternatives: make the repo **public**, host binaries on an internal
+   `TRUSTGUARD_DOWNLOAD_BASE`, or stage with `TRUSTGUARD_LOCAL_BINARY`.
 
 ## What gets installed
 
@@ -48,13 +58,13 @@ Full org picture: [`docs/enterprise.md`](../../docs/enterprise.md) and
 : "${TRUSTGUARD_DATA_URL:=https://your-data-plane.example}"
 : "${TRUSTGUARD_API_KEY:=tgk_…}"
 : "${TRUSTGUARD_FAIL_MODE:=closed}"
+: "${TRUSTGUARD_CLAUDE_CODE_VERSION:=0.1.13}"
+
+# Private repo — required or downloads 404:
+: "${TRUSTGUARD_GITHUB_TOKEN:=github_pat_…}"
 
 # Optional: force Claude Code hooks plugin (MCP stays on Org Connectors):
-: "${TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS:=1}"
-
-# Optional pin:
-# : "${TRUSTGUARD_CLAUDE_CODE_VERSION:=0.1.13}"
-# : "${TRUSTGUARD_BINARY_SHA256:=…}"
+# : "${TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS:=1}"
 ```
 
 5. **Assignment** → Blueprint(s) with developer Macs  
@@ -89,6 +99,26 @@ Contents: see [`secrets.env.example`](./secrets.env.example) (optional
 `TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1`).
 
 2. Leave `REPLACE_ME` in the install script; it loads that file automatically.
+
+## Network / SSL timeouts to GitHub
+
+`curl: (28) SSL connection timeout` means the **Mac cannot complete TLS to
+GitHub** (firewall, proxy, or SSL inspection) — not a bad release.
+
+From a failing Mac:
+
+```bash
+curl -vI --connect-timeout 30 \
+  "https://github.com/NeuralTrust/trustguard-claude-code-plugin/releases/download/v0.1.13/trustguard-claude-code_0.1.13_darwin_arm64"
+```
+
+| Fix | How |
+| --- | --- |
+| Allowlist | Egress to `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com` |
+| Proxy | Set `HTTPS_PROXY` / `HTTP_PROXY` in the Kandji script env (curl honors them) |
+| Mirror | Host the asset on an internal CDN and set `TRUSTGUARD_DOWNLOAD_BASE` |
+| Offline | File drop + `TRUSTGUARD_LOCAL_BINARY=/path/to/binary` |
+| Retries | Defaults: 5 retries, 60s connect, 600s max (`TRUSTGUARD_CURL_*`) |
 
 ## Optional: stage binary without GitHub
 

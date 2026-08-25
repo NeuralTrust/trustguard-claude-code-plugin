@@ -31,7 +31,8 @@ set -euo pipefail
 # open | closed — closed denies when TrustGuard is unreachable.
 : "${TRUSTGUARD_FAIL_MODE:=closed}"
 
-# Optional: pin a release. Empty = latest from GitHub API (or LOCAL_BINARY).
+# Pin a release (recommended). Empty = latest via GitHub API (needs network +
+# token if the repo is private). Example: 0.1.13
 : "${TRUSTGUARD_CLAUDE_CODE_VERSION:=}"
 
 # Optional: full path to a pre-staged binary (skip download). Useful with Kandji
@@ -42,7 +43,23 @@ set -euo pipefail
 : "${TRUSTGUARD_BINARY_SHA256:=}"
 
 # GitHub release base (override for mirrors / private caches).
+# If Macs time out on github.com (SSL/firewall), host binaries internally and set this.
 : "${TRUSTGUARD_DOWNLOAD_BASE:=https://github.com/NeuralTrust/trustguard-claude-code-plugin/releases/download}"
+
+# GitHub owner/repo for API asset download (private releases).
+: "${TRUSTGUARD_GITHUB_REPO:=NeuralTrust/trustguard-claude-code-plugin}"
+
+# Required when the GitHub repo is **private**: PAT or fine-grained token with
+# Contents: Read (classic: repo scope). Also accepted as GITHUB_TOKEN.
+# Prefer the secrets file — do not commit tokens.
+: "${TRUSTGUARD_GITHUB_TOKEN:=}"
+: "${GITHUB_TOKEN:=}"
+
+# curl resilience (corporate networks often need retries + longer SSL handshake).
+: "${TRUSTGUARD_CURL_CONNECT_TIMEOUT:=60}"
+: "${TRUSTGUARD_CURL_MAX_TIME:=600}"
+: "${TRUSTGUARD_CURL_RETRIES:=5}"
+: "${TRUSTGUARD_CURL_RETRY_DELAY:=5}"
 
 # Optional secrets file (0600, root-owned). Lines: KEY=value
 # Deploy separately if you do not want the API key in the Kandji script body.
@@ -91,7 +108,7 @@ load_secrets_file() {
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ "$line" =~ ^[[:space:]]*$ ]] && continue
-    if [[ "$line" =~ ^((TRUSTGUARD|TRUSTGATE)_[A-Z0-9_]+)=(.*)$ ]]; then
+    if [[ "$line" =~ ^((TRUSTGUARD|TRUSTGATE|GITHUB)_[A-Z0-9_]+)=(.*)$ ]]; then
       export "${BASH_REMATCH[1]}=${BASH_REMATCH[3]}"
     fi
   done <"$f"
@@ -99,6 +116,28 @@ load_secrets_file() {
   : "${TRUSTGUARD_DATA_URL:=${TRUSTGUARD_DATA_URL}}"
   : "${TRUSTGUARD_API_KEY:=${TRUSTGUARD_API_KEY}}"
   : "${TRUSTGUARD_FAIL_MODE:=${TRUSTGUARD_FAIL_MODE}}"
+  : "${TRUSTGUARD_GITHUB_TOKEN:=${TRUSTGUARD_GITHUB_TOKEN}}"
+  : "${GITHUB_TOKEN:=${GITHUB_TOKEN}}"
+}
+
+github_token() {
+  # Prefer dedicated name; fall back to GITHUB_TOKEN (common in CI / secrets).
+  if [[ -n "${TRUSTGUARD_GITHUB_TOKEN}" ]]; then
+    echo "${TRUSTGUARD_GITHUB_TOKEN}"
+  elif [[ -n "${GITHUB_TOKEN}" ]]; then
+    echo "${GITHUB_TOKEN}"
+  fi
+}
+
+# Shared curl flags for GitHub / mirror downloads (retries survive flaky SSL).
+curl_download_flags() {
+  echo \
+    --connect-timeout "${TRUSTGUARD_CURL_CONNECT_TIMEOUT}" \
+    --max-time "${TRUSTGUARD_CURL_MAX_TIME}" \
+    --retry "${TRUSTGUARD_CURL_RETRIES}" \
+    --retry-delay "${TRUSTGUARD_CURL_RETRY_DELAY}" \
+    --retry-all-errors \
+    -L
 }
 
 validate_config() {
@@ -133,28 +172,108 @@ detect_arch() {
 
 resolve_version() {
   if [[ -n "${TRUSTGUARD_CLAUDE_CODE_VERSION}" ]]; then
-    echo "${TRUSTGUARD_CLAUDE_CODE_VERSION}"
+    echo "${TRUSTGUARD_CLAUDE_CODE_VERSION#v}"
     return
   fi
   if [[ -n "${TRUSTGUARD_LOCAL_BINARY}" ]]; then
     echo "local"
     return
   fi
-  # Latest tag from GitHub (v0.1.2 → 0.1.2). Prefer pinning TRUSTGUARD_CLAUDE_CODE_VERSION.
-  local tag body code
+  # Latest tag from GitHub (v0.1.13 → 0.1.13). Prefer pinning TRUSTGUARD_CLAUDE_CODE_VERSION.
+  local tag body code token
+  token="$(github_token)"
   body="$(mktemp "${TMPDIR:-/tmp}/tg-release.XXXXXX")"
-  code="$(curl -sS -o "$body" -w '%{http_code}' --connect-timeout 10 --max-time 60 \
-    -H 'Accept: application/vnd.github+json' \
-    "https://api.github.com/repos/NeuralTrust/trustguard-claude-code-plugin/releases/latest" || true)"
+  if [[ -n "$token" ]]; then
+    code="$(curl -sS -o "$body" -w '%{http_code}' --connect-timeout 10 --max-time 60 \
+      -H "Authorization: Bearer ${token}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "https://api.github.com/repos/${TRUSTGUARD_GITHUB_REPO}/releases/latest" || true)"
+  else
+    code="$(curl -sS -o "$body" -w '%{http_code}' --connect-timeout 10 --max-time 60 \
+      -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/${TRUSTGUARD_GITHUB_REPO}/releases/latest" || true)"
+  fi
   if [[ "$code" == "200" ]]; then
     tag="$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("tag_name",""))' "$body" 2>/dev/null || true)"
   fi
   rm -f "$body"
   tag="${tag#v}"
   if [[ -z "$tag" ]]; then
-    die "could not resolve latest release (HTTP ${code:-?}). Publish a GitHub Release, or set TRUSTGUARD_CLAUDE_CODE_VERSION=0.1.13 / TRUSTGUARD_LOCAL_BINARY" 2
+    die "could not resolve latest release (HTTP ${code:-?}). Private repo? Set TRUSTGUARD_GITHUB_TOKEN + TRUSTGUARD_CLAUDE_CODE_VERSION=0.1.13, or TRUSTGUARD_LOCAL_BINARY / public repo" 2
   fi
   echo "$tag"
+}
+
+download_release_binary() {
+  # $1=version (no v) $2=arch $3=out path
+  local version="$1" arch="$2" out="$3"
+  local name="trustguard-claude-code_${version}_darwin_${arch}"
+  local browser_url="${TRUSTGUARD_DOWNLOAD_BASE}/v${version}/${name}"
+  local token code asset_api curl_rc=0
+  # shellcheck disable=SC2207
+  local flags=($(curl_download_flags))
+  token="$(github_token)"
+
+  if [[ -n "$token" ]]; then
+    # Private releases: browser URLs 404 without auth. Resolve asset id via API
+    # and download with Accept: application/octet-stream.
+    local meta
+    meta="$(mktemp "${TMPDIR:-/tmp}/tg-rel-meta.XXXXXX")"
+    code="$(curl -sS -o "$meta" -w '%{http_code}' \
+      --connect-timeout "${TRUSTGUARD_CURL_CONNECT_TIMEOUT}" \
+      --max-time 120 \
+      --retry "${TRUSTGUARD_CURL_RETRIES}" \
+      --retry-delay "${TRUSTGUARD_CURL_RETRY_DELAY}" \
+      --retry-all-errors \
+      -H "Authorization: Bearer ${token}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "https://api.github.com/repos/${TRUSTGUARD_GITHUB_REPO}/releases/tags/v${version}" || true)"
+    if [[ "$code" != "200" ]]; then
+      rm -f "$meta"
+      die "GitHub release v${version} not readable (HTTP ${code}). Check TRUSTGUARD_GITHUB_TOKEN (Contents: Read) and tag exists" 2
+    fi
+    asset_api="$(/usr/bin/python3 - "$meta" "$name" <<'PY'
+import json, sys
+doc = json.load(open(sys.argv[1]))
+want = sys.argv[2]
+for a in doc.get("assets") or []:
+    if a.get("name") == want:
+        print(a.get("url") or "")
+        break
+PY
+)"
+    rm -f "$meta"
+    if [[ -z "$asset_api" ]]; then
+      die "release v${version} has no asset named ${name}" 2
+    fi
+    log "downloading private asset ${name} (API, retries=${TRUSTGUARD_CURL_RETRIES})"
+    code="$(curl -sS -o "$out" -w '%{http_code}' "${flags[@]}" \
+      -H "Authorization: Bearer ${token}" \
+      -H "Accept: application/octet-stream" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "$asset_api")" && curl_rc=0 || curl_rc=$?
+    if [[ "$curl_rc" -ne 0 || "$code" != "200" ]]; then
+      rm -f "$out"
+      die "asset download failed (curl_exit=${curl_rc} HTTP ${code:-?}) for ${name}. Network to api.github.com/objects? Try TRUSTGUARD_LOCAL_BINARY or internal TRUSTGUARD_DOWNLOAD_BASE" 2
+    fi
+    return 0
+  fi
+
+  log "downloading ${browser_url} (retries=${TRUSTGUARD_CURL_RETRIES}, connect=${TRUSTGUARD_CURL_CONNECT_TIMEOUT}s)"
+  code="$(curl -sS -o "$out" -w '%{http_code}' "${flags[@]}" \
+    "$browser_url")" && curl_rc=0 || curl_rc=$?
+  if [[ "$curl_rc" -ne 0 || "$code" != "200" ]]; then
+    rm -f "$out"
+    if [[ "$curl_rc" -eq 28 || "$curl_rc" -eq 35 || "$curl_rc" -eq 56 ]]; then
+      die "download network/SSL failure (curl_exit=${curl_rc}) for ${browser_url}. From the Mac: curl -vI that URL. Fixes: allow github.com + *.githubusercontent.com egress, set HTTPS_PROXY, host a mirror (TRUSTGUARD_DOWNLOAD_BASE), or stage TRUSTGUARD_LOCAL_BINARY" 2
+    fi
+    if [[ "$code" == "404" ]]; then
+      die "download 404: ${browser_url} — wrong version or asset name; pin TRUSTGUARD_CLAUDE_CODE_VERSION" 2
+    fi
+    die "download failed (curl_exit=${curl_rc} HTTP ${code:-?}): ${browser_url}" 2
+  fi
 }
 
 install_binary() {
@@ -166,16 +285,11 @@ install_binary() {
     log "installing binary from ${TRUSTGUARD_LOCAL_BINARY}"
     cp "${TRUSTGUARD_LOCAL_BINARY}" "${BIN_PATH}.new"
   else
-    local version arch url tmp
+    local version arch tmp
     version="$(resolve_version)"
     arch="$(detect_arch)"
-    url="${TRUSTGUARD_DOWNLOAD_BASE}/v${version}/trustguard-claude-code_${version}_darwin_${arch}"
     tmp="$(mktemp "${TMPDIR:-/tmp}/tg-claude-code.XXXXXX")"
-    log "downloading ${url}"
-    if ! curl -fsSL --connect-timeout 15 --max-time 300 -o "$tmp" "$url"; then
-      rm -f "$tmp"
-      die "download failed: ${url}" 2
-    fi
+    download_release_binary "$version" "$arch" "$tmp"
     if [[ -n "${TRUSTGUARD_BINARY_SHA256}" ]]; then
       local got
       got="$(shasum -a 256 "$tmp" | awk '{print $1}')"
