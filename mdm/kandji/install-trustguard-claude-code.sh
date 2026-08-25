@@ -12,8 +12,8 @@
 #   - Assignment: Blueprint(s) with Claude Code users
 #
 # Ships collector credentials + binary. Optionally also writes Claude Code
-# managed-settings.json (plugin + TrustGate MCP URL). See mdm/kandji/README.md
-# and mdm/claude/README.md.
+# managed-settings.json (plugin enable only). TrustGate MCP = Org Connectors.
+# See mdm/kandji/README.md and mdm/claude/README.md.
 #
 # Exit codes: 0 success | 1 misconfiguration | 2 install failure
 set -euo pipefail
@@ -48,11 +48,11 @@ set -euo pipefail
 # Deploy separately if you do not want the API key in the Kandji script body.
 : "${TRUSTGUARD_SECRETS_FILE:=/Library/Managed Preferences/ai.neuraltrust.trustguard-claude-code.env}"
 
-# --- Claude Code managed settings (plugin + TrustGate MCP URL) ---
-# Set TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1 and TRUSTGATE_MCP_URL to write
-# /Library/Application Support/ClaudeCode/managed-settings.json (org-wide).
+# --- Claude Code managed settings (plugin enable only; MCP is Org Connectors) ---
+# Set TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1 to write
+# /Library/Application Support/ClaudeCode/managed-settings.json (hooks plugin).
+# TrustGate MCP stays on claude.ai Organization → Connectors (all products).
 : "${TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS:=0}"
-: "${TRUSTGATE_MCP_URL:=}"
 : "${TRUSTGUARD_MARKETPLACE_REPO:=NeuralTrust/trustguard-claude-code-plugin}"
 : "${TRUSTGUARD_PLUGIN_ID:=trustguard@neuraltrust}"
 : "${TRUSTGUARD_MARKETPLACE_NAME:=neuraltrust}"
@@ -152,7 +152,7 @@ resolve_version() {
   rm -f "$body"
   tag="${tag#v}"
   if [[ -z "$tag" ]]; then
-    die "could not resolve latest release (HTTP ${code:-?}). Publish a GitHub Release, or set TRUSTGUARD_CLAUDE_CODE_VERSION=0.1.12 / TRUSTGUARD_LOCAL_BINARY" 2
+    die "could not resolve latest release (HTTP ${code:-?}). Publish a GitHub Release, or set TRUSTGUARD_CLAUDE_CODE_VERSION=0.1.13 / TRUSTGUARD_LOCAL_BINARY" 2
   fi
   echo "$tag"
 }
@@ -255,26 +255,19 @@ write_claude_managed_settings() {
       ;;
   esac
 
-  if [[ -z "${TRUSTGATE_MCP_URL}" || "${TRUSTGATE_MCP_URL}" == *REPLACE_ME* ]]; then
-    die "TRUSTGATE_MCP_URL is required when TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1" 1
-  fi
-  case "${TRUSTGATE_MCP_URL}" in
-    https://*) ;;
-    *) die "TRUSTGATE_MCP_URL must be an https:// MCP endpoint" 1 ;;
-  esac
-
   mkdir -p "${CLAUDE_SUPPORT_DIR}"
   chmod 755 "${CLAUDE_SUPPORT_DIR}"
 
   local tmp
   tmp="$(mktemp "${TMPDIR:-/tmp}/tg-claude-managed.XXXXXX")"
-  export TRUSTGATE_MCP_URL TRUSTGUARD_MARKETPLACE_REPO TRUSTGUARD_PLUGIN_ID TRUSTGUARD_MARKETPLACE_NAME
+  export TRUSTGUARD_MARKETPLACE_REPO TRUSTGUARD_PLUGIN_ID TRUSTGUARD_MARKETPLACE_NAME
   /usr/bin/python3 - "$tmp" <<'PY'
 import json, os, sys
 path = sys.argv[1]
 marketplace = os.environ["TRUSTGUARD_MARKETPLACE_NAME"]
 plugin_id = os.environ["TRUSTGUARD_PLUGIN_ID"]
 repo = os.environ["TRUSTGUARD_MARKETPLACE_REPO"]
+# Hooks plugin only. TrustGate MCP is org Connectors (all Claude products).
 doc = {
     "extraKnownMarketplaces": {
         marketplace: {
@@ -283,13 +276,6 @@ doc = {
         }
     },
     "enabledPlugins": {plugin_id: True},
-    "pluginConfigs": {
-        plugin_id: {
-            "options": {
-                "trustgate_mcp_url": os.environ["TRUSTGATE_MCP_URL"].strip(),
-            }
-        }
-    },
 }
 with open(path, "w", encoding="utf-8") as f:
     json.dump(doc, f, indent=2)
@@ -297,7 +283,7 @@ with open(path, "w", encoding="utf-8") as f:
 PY
   install -m 0644 -o root -g wheel "$tmp" "${CLAUDE_MANAGED_SETTINGS}"
   rm -f "$tmp"
-  log "wrote Claude managed settings ${CLAUDE_MANAGED_SETTINGS}"
+  log "wrote Claude managed settings ${CLAUDE_MANAGED_SETTINGS} (plugin enable; MCP via Org Connectors)"
 }
 
 verify() {
@@ -321,14 +307,14 @@ main() {
   load_secrets_file "${TRUSTGUARD_SECRETS_FILE}"
   # Re-export after secrets file may have set them
   export TRUSTGUARD_DATA_URL TRUSTGUARD_API_KEY TRUSTGUARD_FAIL_MODE
-  export TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS TRUSTGATE_MCP_URL
+  export TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS
   export TRUSTGUARD_MARKETPLACE_REPO TRUSTGUARD_PLUGIN_ID TRUSTGUARD_MARKETPLACE_NAME
   validate_config
   install_binary
   write_managed_config
   write_claude_managed_settings
   verify
-  log "done. Hooks use managed collector key; Claude managed-settings force plugin + MCP URL when enabled."
+  log "done. Hooks use managed collector key; Claude managed-settings force plugin when enabled. TrustGate MCP = Org Connectors."
 }
 
 main "$@"

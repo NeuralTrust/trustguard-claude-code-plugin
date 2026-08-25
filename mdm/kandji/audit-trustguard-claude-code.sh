@@ -13,7 +13,7 @@ SUPPORT_DIR="/Library/Application Support/TrustGuard"
 CONFIG_PATH="${SUPPORT_DIR}/claude-code.json"
 BIN_PATH="${SUPPORT_DIR}/bin/trustguard-claude-code"
 # Optional: set TRUSTGUARD_REQUIRE_CLAUDE_MANAGED_SETTINGS=1 in Kandji to also
-# require Claude Code managed-settings.json (plugin + MCP URL).
+# require Claude Code managed-settings.json (plugin enable only; MCP is Org Connectors).
 : "${TRUSTGUARD_REQUIRE_CLAUDE_MANAGED_SETTINGS:=0}"
 CLAUDE_MANAGED_SETTINGS="/Library/Application Support/ClaudeCode/managed-settings.json"
 
@@ -62,15 +62,10 @@ doc = json.load(open("${CLAUDE_MANAGED_SETTINGS}"))
 plugins = doc.get("enabledPlugins") or {}
 if not plugins.get("trustguard@neuraltrust"):
     sys.exit(2)
-pc = (doc.get("pluginConfigs") or {}).get("trustguard@neuraltrust") or {}
-opts = pc.get("options") or {}
-url = (opts.get("trustgate_mcp_url") or "").strip()
-if not url or "REPLACE_ME" in url or not url.startswith("https://"):
-    sys.exit(3)
 print("claude-managed-settings ok", flush=True)
 PY
     then
-      echo "Claude managed-settings invalid (need enabledPlugins + pluginConfigs.options.trustgate_mcp_url)"
+      echo "Claude managed-settings invalid (need enabledPlugins trustguard@neuraltrust)"
       exit 1
     fi
     ;;

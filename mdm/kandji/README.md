@@ -1,14 +1,15 @@
 # Kandji — TrustGuard for Claude Code
 
 MDM rollout for **macOS**. Installs the hook binary and the **managed collector
-config**. Optionally writes Claude Code **managed-settings.json** (plugin +
-TrustGate MCP URL) in the same script.
+config**. Optionally writes Claude Code **managed-settings.json** (plugin enable
+only). **TrustGate MCP is not installed here** — use claude.ai Organization →
+Connectors for all products.
 
 | Delivers | Does **not** deliver |
 | --- | --- |
-| Binary `trustguard-claude-code` | Per-user TrustGate OAuth (user completes once in `/mcp`) |
+| Binary `trustguard-claude-code` | TrustGate MCP (Org Connectors) |
 | Managed collector `tgk_…` | Inference Hook secrets (`whsec_…`) |
-| Optional Claude `managed-settings.json` | — |
+| Optional Claude `managed-settings.json` (hooks plugin) | Per-user TrustGate OAuth |
 
 Full org picture: [`docs/enterprise.md`](../../docs/enterprise.md) and
 [`mdm/claude/README.md`](../claude/README.md).
@@ -46,12 +47,11 @@ Full org picture: [`docs/enterprise.md`](../../docs/enterprise.md) and
 : "${TRUSTGUARD_API_KEY:=tgk_…}"
 : "${TRUSTGUARD_FAIL_MODE:=closed}"
 
-# Org plugin + MCP URL (same Custom Script):
+# Optional: force Claude Code hooks plugin (MCP stays on Org Connectors):
 : "${TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS:=1}"
-: "${TRUSTGATE_MCP_URL:=https://host/consumer-slug/mcp}"
 
 # Optional pin:
-# : "${TRUSTGUARD_CLAUDE_CODE_VERSION:=0.1.12}"
+# : "${TRUSTGUARD_CLAUDE_CODE_VERSION:=0.1.13}"
 # : "${TRUSTGUARD_BINARY_SHA256:=…}"
 ```
 
@@ -83,14 +83,14 @@ To also require Claude managed-settings in the audit:
 /Library/Managed Preferences/ai.neuraltrust.trustguard-claude-code.env
 ```
 
-Contents: see [`secrets.env.example`](./secrets.env.example) (includes optional
-`TRUSTGATE_MCP_URL` + deploy flag).
+Contents: see [`secrets.env.example`](./secrets.env.example) (optional
+`TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1`).
 
 2. Leave `REPLACE_ME` in the install script; it loads that file automatically.
 
 ## Optional: stage binary without GitHub
 
-1. Build: `make dist VERSION=0.1.12`
+1. Build: `make dist VERSION=0.1.13`
 2. Host binaries on an internal URL (`TRUSTGUARD_DOWNLOAD_BASE`) **or**
 3. Drop the binary and set `TRUSTGUARD_LOCAL_BINARY=/path/to/binary`
 
@@ -100,7 +100,7 @@ Contents: see [`secrets.env.example`](./secrets.env.example) (includes optional
 /Library/Application\ Support/TrustGuard/bin/trustguard-claude-code version
 cat /Library/Application\ Support/TrustGuard/claude-code.json
 
-# If Claude managed-settings were deployed:
+# If Claude managed-settings were deployed (plugin enable only):
 cat /Library/Application\ Support/ClaudeCode/managed-settings.json
 
 echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"session_id":"mdm"}' \
@@ -111,7 +111,7 @@ In Claude Code:
 
 - `/status` → Enterprise managed settings  
 - `claude plugin list` → `trustguard@neuraltrust` enabled  
-- `/mcp` → TrustGate OAuth once → tools  
+- `/mcp` → TrustGate as **org** connector (not plugin-provided)  
 - TrustGuard activity: `source.application=claude-code-plugin`
 
 ## Uninstall (manual)
@@ -134,4 +134,5 @@ other org policies in the same JSON). Prefer a drop-in under
   read it. Protect Macs with FileVault + lock screen; rotate `tgk_…` on loss.
 - Prefer Option C (secrets file) if policy forbids keys in the Kandji script body.
 - Never put Inference Hook `whsec_…` in the collector config.
-- Never put `tgk_…` in Claude `pluginConfigs`.
+- Never put `tgk_…` on Org Connectors or in Claude managed settings.
+- TrustGate MCP is only via Org Connectors — not this plugin / Kandji.
