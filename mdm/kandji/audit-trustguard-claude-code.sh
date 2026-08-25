@@ -12,6 +12,10 @@ set -euo pipefail
 SUPPORT_DIR="/Library/Application Support/TrustGuard"
 CONFIG_PATH="${SUPPORT_DIR}/claude-code.json"
 BIN_PATH="${SUPPORT_DIR}/bin/trustguard-claude-code"
+# Optional: set TRUSTGUARD_REQUIRE_CLAUDE_MANAGED_SETTINGS=1 in Kandji to also
+# require Claude Code managed-settings.json (plugin + MCP URL).
+: "${TRUSTGUARD_REQUIRE_CLAUDE_MANAGED_SETTINGS:=0}"
+CLAUDE_MANAGED_SETTINGS="/Library/Application Support/ClaudeCode/managed-settings.json"
 
 if [[ ! -x "${BIN_PATH}" ]]; then
   echo "missing binary: ${BIN_PATH}"
@@ -45,6 +49,32 @@ then
   echo "managed config invalid or incomplete"
   exit 1
 fi
+
+case "${TRUSTGUARD_REQUIRE_CLAUDE_MANAGED_SETTINGS}" in
+  1|true|TRUE|yes|YES)
+    if [[ ! -f "${CLAUDE_MANAGED_SETTINGS}" ]]; then
+      echo "missing Claude managed-settings: ${CLAUDE_MANAGED_SETTINGS}"
+      exit 1
+    fi
+    if ! /usr/bin/python3 - <<PY
+import json, sys
+doc = json.load(open("${CLAUDE_MANAGED_SETTINGS}"))
+plugins = doc.get("enabledPlugins") or {}
+if not plugins.get("trustguard@neuraltrust"):
+    sys.exit(2)
+pc = (doc.get("pluginConfigs") or {}).get("trustguard@neuraltrust") or {}
+opts = pc.get("options") or {}
+url = (opts.get("trustgate_mcp_url") or "").strip()
+if not url or "REPLACE_ME" in url or not url.startswith("https://"):
+    sys.exit(3)
+print("claude-managed-settings ok", flush=True)
+PY
+    then
+      echo "Claude managed-settings invalid (need enabledPlugins + pluginConfigs.options.trustgate_mcp_url)"
+      exit 1
+    fi
+    ;;
+esac
 
 echo "compliant: $("${BIN_PATH}" version) @ ${CONFIG_PATH}"
 exit 0

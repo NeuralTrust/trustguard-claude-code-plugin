@@ -11,7 +11,7 @@
 # The VERSION and SHA256_* table are updated per release.
 set -u
 
-VERSION="0.1.10"
+VERSION="0.1.12"
 BASE_URL="${TRUSTGUARD_CLAUDE_CODE_DOWNLOAD_BASE:-https://github.com/NeuralTrust/trustguard-claude-code-plugin/releases/download}"
 BIN_DIR="${TRUSTGUARD_CLAUDE_CODE_BIN_DIR:-$HOME/.trustguard/bin}"
 
@@ -30,10 +30,6 @@ fail_open() {
     exit 0
 }
 
-if command -v trustguard-claude-code >/dev/null 2>&1; then
-    exec trustguard-claude-code hook
-fi
-
 EXT=""
 case "$(uname -s)" in
     Darwin) OS="darwin" ;;
@@ -42,10 +38,14 @@ case "$(uname -s)" in
     *) OS="" ;;
 esac
 
-# MDM (Kandji) install path — managed binary, all users.
+# MDM (Kandji) first — org binary must win over any developer PATH copy.
 MDM_BIN="/Library/Application Support/TrustGuard/bin/trustguard-claude-code$EXT"
 if [ -x "$MDM_BIN" ]; then
     exec "$MDM_BIN" hook
+fi
+
+if command -v trustguard-claude-code >/dev/null 2>&1; then
+    exec trustguard-claude-code hook
 fi
 
 # Local install (make install-local) drops an unversioned binary here.

@@ -1,0 +1,21 @@
+{
+  "extraKnownMarketplaces": {
+    "neuraltrust": {
+      "source": {
+        "source": "github",
+        "repo": "NeuralTrust/trustguard-claude-code-plugin"
+      },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "trustguard@neuraltrust": true
+  },
+  "pluginConfigs": {
+    "trustguard@neuraltrust": {
+      "options": {
+        "trustgate_mcp_url": "https://REPLACE_ME_HOST/REPLACE_ME_CONSUMER_SLUG/mcp"
+      }
+    }
+  }
+}

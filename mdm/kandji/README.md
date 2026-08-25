@@ -1,36 +1,37 @@
 # Kandji — TrustGuard for Claude Code
 
-MDM rollout for **macOS** (Kandji). Installs the hook binary and the **managed
-collector config** so every Mac uses the org `tgk_…` without developers pasting
-keys into Claude.
+MDM rollout for **macOS**. Installs the hook binary and the **managed collector
+config**. Optionally writes Claude Code **managed-settings.json** (plugin +
+TrustGate MCP URL) in the same script.
 
 | Delivers | Does **not** deliver |
 | --- | --- |
-| Binary `trustguard-claude-code` | Claude org **plugin** enable (do that in claude.ai → Plugins) |
-| Managed config with collector key | TrustGate MCP connector (optional, separate) |
+| Binary `trustguard-claude-code` | Per-user TrustGate OAuth (user completes once in `/mcp`) |
+| Managed collector `tgk_…` | Inference Hook secrets (`whsec_…`) |
+| Optional Claude `managed-settings.json` | — |
+
+Full org picture: [`docs/enterprise.md`](../../docs/enterprise.md) and
+[`mdm/claude/README.md`](../claude/README.md).
 
 ## Prerequisites
 
-1. TrustGuard → create a **Claude Code / IDE** collector → mint `tgk_…`.
-2. Note the data-plane base URL (no `/v1/evaluate`).
-3. Publish a GitHub **release** of this repo (or stage the binary another way).
-4. Claude org: marketplace `NeuralTrust/trustguard-claude-code-plugin` + enable
-   **trustguard** for the team (hooks only work if the plugin is on).
+1. TrustGuard → **Claude Code / IDE** collector → mint `tgk_…` + data-plane URL.
+2. TrustGate Connect → org MCP URL (`https://host/slug/mcp`).
+3. Publish a GitHub **release** of this repo (or stage the binary offline).
+4. Feature work merged to the marketplace default branch.
 
 ## What gets installed
 
 | Path | Content |
 | --- | --- |
-| `/Library/Application Support/TrustGuard/claude-code.json` | Managed config (`api_key` locked) |
+| `/Library/Application Support/TrustGuard/claude-code.json` | Managed collector config (`api_key` locked) |
 | `/Library/Application Support/TrustGuard/bin/trustguard-claude-code` | Hook binary |
 | `/usr/local/bin/trustguard-claude-code` | Symlink when `/usr/local/bin` exists |
-
-The binary reads the managed file first; developers cannot override
-`api_key` / `data_url` / `fail_mode` via `~/.trustguard/claude-code.json` or env.
+| `/Library/Application Support/ClaudeCode/managed-settings.json` | **If** `TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1` |
 
 ## Kandji Library Item
 
-### Option A — single install script (simplest)
+### Option A — single install script (recommended)
 
 1. [Kandji](https://web.kandji.io) → **Library** → **Add Library Item** → **Custom Script**
 2. **General**
@@ -38,14 +39,19 @@ The binary reads the managed file first; developers cannot override
    - Execution frequency: **Once** (or **Every Day** to repair drift)
    - Restart: **No**
 3. **Script**: paste [`install-trustguard-claude-code.sh`](./install-trustguard-claude-code.sh)
-4. **Before save**, set credentials in the CONFIG block at the top of the script:
+4. **Before save**, set CONFIG at the top of the script (or secrets file):
 
 ```bash
 : "${TRUSTGUARD_DATA_URL:=https://your-data-plane.example}"
 : "${TRUSTGUARD_API_KEY:=tgk_…}"
 : "${TRUSTGUARD_FAIL_MODE:=closed}"
+
+# Org plugin + MCP URL (same Custom Script):
+: "${TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS:=1}"
+: "${TRUSTGATE_MCP_URL:=https://host/consumer-slug/mcp}"
+
 # Optional pin:
-# : "${TRUSTGUARD_CLAUDE_CODE_VERSION:=0.1.2}"
+# : "${TRUSTGUARD_CLAUDE_CODE_VERSION:=0.1.12}"
 # : "${TRUSTGUARD_BINARY_SHA256:=…}"
 ```
 
@@ -59,75 +65,54 @@ Kandji runs Custom Scripts as **root** — required for `/Library/Application Su
 | Field | File |
 | --- | --- |
 | **Audit Script** | [`audit-trustguard-claude-code.sh`](./audit-trustguard-claude-code.sh) |
-| **Remediation Script** | [`install-trustguard-claude-code.sh`](./install-trustguard-claude-code.sh) (with CONFIG filled) |
+| **Remediation Script** | [`install-trustguard-claude-code.sh`](./install-trustguard-claude-code.sh) (CONFIG filled) |
 
-- Audit exit `0` → compliant, skip remediation  
-- Audit exit `≠ 0` → run install  
+To also require Claude managed-settings in the audit:
 
-Frequency: **Every Day** is enough.
+```bash
+: "${TRUSTGUARD_REQUIRE_CLAUDE_MANAGED_SETTINGS:=1}"
+```
+
+(in the Audit script env / Kandji variable)
 
 ### Option C — key outside the script body
 
-1. Deploy a root-owned env file (File drop / another script), mode `0600`:
+1. Deploy a root-owned env file (File drop), mode `0600`:
 
 ```
 /Library/Managed Preferences/ai.neuraltrust.trustguard-claude-code.env
 ```
 
-Contents: see [`secrets.env.example`](./secrets.env.example).
+Contents: see [`secrets.env.example`](./secrets.env.example) (includes optional
+`TRUSTGATE_MCP_URL` + deploy flag).
 
 2. Leave `REPLACE_ME` in the install script; it loads that file automatically.
 
 ## Optional: stage binary without GitHub
 
-If Macs cannot reach GitHub:
-
-1. Build: `make dist VERSION=0.1.2`
-2. Host `trustguard-claude-code_0.1.2_darwin_arm64` (and amd64) on an internal URL,
-   set `TRUSTGUARD_DOWNLOAD_BASE`, **or**
-3. Drop the binary on the Mac and set:
-
-```bash
-: "${TRUSTGUARD_LOCAL_BINARY:=/path/to/trustguard-claude-code}"
-```
+1. Build: `make dist VERSION=0.1.12`
+2. Host binaries on an internal URL (`TRUSTGUARD_DOWNLOAD_BASE`) **or**
+3. Drop the binary and set `TRUSTGUARD_LOCAL_BINARY=/path/to/binary`
 
 ## Verify on a Mac
 
 ```bash
-# As any user
 /Library/Application\ Support/TrustGuard/bin/trustguard-claude-code version
-
 cat /Library/Application\ Support/TrustGuard/claude-code.json
-# should show data_url + api_key (org key)
+
+# If Claude managed-settings were deployed:
+cat /Library/Application\ Support/ClaudeCode/managed-settings.json
 
 echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"session_id":"mdm"}' \
   | trustguard-claude-code hook
-# no "TRUSTGUARD_API_KEY missing"; empty {} or deny JSON
 ```
 
-In Claude: **Plugins → Trustguard → Hooks** must list Prompt submit / Pre / Post.
-Activity in TrustGuard should show `source.application=claude-code-plugin`.
+In Claude Code:
 
-## Claude plugin (not Kandji)
-
-Kandji does **not** install the Claude plugin. Org admin:
-
-1. claude.ai → org **Plugins** → marketplace synced  
-2. Enable **trustguard** for the team  
-
-Without the plugin, the binary sits idle (no hooks fire).
-
-## TrustGate MCP (optional)
-
-URL only — OAuth handles auth. Prompted on enable, or non-interactive:
-
-```bash
-claude plugin install trustguard@neuraltrust \
-  --config trustgate_mcp_url=https://HOST/SLUG/mcp
-```
-
-Org-wide URL defaults can go under `pluginConfigs` in managed settings.
-Do not put `tgk_…` there.
+- `/status` → Enterprise managed settings  
+- `claude plugin list` → `trustguard@neuraltrust` enabled  
+- `/mcp` → TrustGate OAuth once → tools  
+- TrustGuard activity: `source.application=claude-code-plugin`
 
 ## Uninstall (manual)
 
@@ -135,14 +120,18 @@ Do not put `tgk_…` there.
 sudo rm -f \
   "/Library/Application Support/TrustGuard/claude-code.json" \
   "/Library/Application Support/TrustGuard/bin/trustguard-claude-code" \
-  /usr/local/bin/trustguard-claude-code
+  /usr/local/bin/trustguard-claude-code \
+  "/Library/Application Support/ClaudeCode/managed-settings.json"
 ```
+
+Only remove Claude managed-settings if this script owns the whole file (no
+other org policies in the same JSON). Prefer a drop-in under
+`managed-settings.d/` if you merge policies later.
 
 ## Security notes
 
-- Managed config is `0644 root:wheel` so the user-session hook process can read
-  it (same pattern as other MDM app configs). Protect the Mac with FileVault +
-  Kandji lock screen; rotate `tgk_…` if a device is lost.
-- Prefer Option C (secrets file) if your policy forbids collector keys in the
-  Kandji script library text.
-- Never put Inference Hook `whsec_…` in this config.
+- Managed collector config is `0644 root:wheel` so the user-session hook can
+  read it. Protect Macs with FileVault + lock screen; rotate `tgk_…` on loss.
+- Prefer Option C (secrets file) if policy forbids keys in the Kandji script body.
+- Never put Inference Hook `whsec_…` in the collector config.
+- Never put `tgk_…` in Claude `pluginConfigs`.
