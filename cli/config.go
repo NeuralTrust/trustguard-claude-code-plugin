@@ -144,7 +144,6 @@ func applyOverlay(cfg *Config, overlay Config) {
 }
 
 func applyEnv(cfg *Config) {
-	// Explicit env wins over Claude Code plugin userConfig (below).
 	if v := os.Getenv("TRUSTGUARD_DATA_URL"); v != "" && !cfg.managed {
 		cfg.DataURL = v
 	}
@@ -164,25 +163,6 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("TRUSTGUARD_CONSUMER_ID"); v != "" {
 		cfg.ConsumerID = v
-	}
-
-	// Claude Code exports plugin userConfig to hook processes as
-	// CLAUDE_PLUGIN_OPTION_<KEY> (key uppercased). Fill only empty fields so
-	// file/env/MDM stay authoritative.
-	if cfg.DataURL == "" && !cfg.managed {
-		if v := os.Getenv("CLAUDE_PLUGIN_OPTION_TRUSTGUARD_DATA_URL"); v != "" {
-			cfg.DataURL = v
-		}
-	}
-	if cfg.APIKey == "" && !cfg.managed {
-		if v := os.Getenv("CLAUDE_PLUGIN_OPTION_TRUSTGUARD_API_KEY"); v != "" {
-			cfg.APIKey = v
-		}
-	}
-	if cfg.FailMode == "" && !cfg.managed {
-		if v := os.Getenv("CLAUDE_PLUGIN_OPTION_TRUSTGUARD_FAIL_MODE"); v != "" {
-			cfg.FailMode = v
-		}
 	}
 }
 

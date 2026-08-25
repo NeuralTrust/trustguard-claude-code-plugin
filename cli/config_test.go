@@ -6,35 +6,17 @@ import (
 	"testing"
 )
 
-func TestPluginOptionEnvFillsWhenEmpty(t *testing.T) {
-	dir := t.TempDir()
-	// No system/user files; only Claude Code plugin options.
-	t.Setenv("TRUSTGUARD_CLAUDE_CODE_SYSTEM_CONFIG", filepath.Join(dir, "missing-system.json"))
-	t.Setenv("TRUSTGUARD_CLAUDE_CODE_CONFIG", filepath.Join(dir, "missing-user.json"))
-	t.Setenv("TRUSTGUARD_API_KEY", "")
-	t.Setenv("TRUSTGUARD_DATA_URL", "")
-	t.Setenv("CLAUDE_PLUGIN_OPTION_TRUSTGUARD_API_KEY", "tgk_plugin")
-	t.Setenv("CLAUDE_PLUGIN_OPTION_TRUSTGUARD_DATA_URL", "https://plugin.example")
-	t.Setenv("CLAUDE_PLUGIN_OPTION_TRUSTGUARD_FAIL_MODE", "closed")
-
-	cfg := loadConfig()
-	if cfg.APIKey != "tgk_plugin" || cfg.DataURL != "https://plugin.example" || cfg.FailMode != "closed" {
-		t.Fatalf("plugin options not applied: %+v", cfg)
-	}
-}
-
-func TestExplicitEnvBeatsPluginOption(t *testing.T) {
+func TestEnvFillsConfig(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("TRUSTGUARD_CLAUDE_CODE_SYSTEM_CONFIG", filepath.Join(dir, "missing-system.json"))
 	t.Setenv("TRUSTGUARD_CLAUDE_CODE_CONFIG", filepath.Join(dir, "missing-user.json"))
 	t.Setenv("TRUSTGUARD_API_KEY", "tgk_env")
 	t.Setenv("TRUSTGUARD_DATA_URL", "https://env.example")
-	t.Setenv("CLAUDE_PLUGIN_OPTION_TRUSTGUARD_API_KEY", "tgk_plugin")
-	t.Setenv("CLAUDE_PLUGIN_OPTION_TRUSTGUARD_DATA_URL", "https://plugin.example")
+	t.Setenv("TRUSTGUARD_FAIL_MODE", "closed")
 
 	cfg := loadConfig()
-	if cfg.APIKey != "tgk_env" || cfg.DataURL != "https://env.example" {
-		t.Fatalf("explicit env should win: %+v", cfg)
+	if cfg.APIKey != "tgk_env" || cfg.DataURL != "https://env.example" || cfg.FailMode != "closed" {
+		t.Fatalf("env not applied: %+v", cfg)
 	}
 }
 
