@@ -100,6 +100,26 @@ Contents: see [`secrets.env.example`](./secrets.env.example) (optional
 
 2. Leave `REPLACE_ME` in the install script; it loads that file automatically.
 
+## Network / SSL timeouts to GitHub
+
+`curl: (28) SSL connection timeout` means the **Mac cannot complete TLS to
+GitHub** (firewall, proxy, or SSL inspection) — not a bad release.
+
+From a failing Mac:
+
+```bash
+curl -vI --connect-timeout 30 \
+  "https://github.com/NeuralTrust/trustguard-claude-code-plugin/releases/download/v0.1.13/trustguard-claude-code_0.1.13_darwin_arm64"
+```
+
+| Fix | How |
+| --- | --- |
+| Allowlist | Egress to `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com` |
+| Proxy | Set `HTTPS_PROXY` / `HTTP_PROXY` in the Kandji script env (curl honors them) |
+| Mirror | Host the asset on an internal CDN and set `TRUSTGUARD_DOWNLOAD_BASE` |
+| Offline | File drop + `TRUSTGUARD_LOCAL_BINARY=/path/to/binary` |
+| Retries | Defaults: 5 retries, 60s connect, 600s max (`TRUSTGUARD_CURL_*`) |
+
 ## Optional: stage binary without GitHub
 
 1. Build: `make dist VERSION=0.1.13`

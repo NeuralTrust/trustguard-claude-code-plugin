@@ -43,6 +43,7 @@ set -euo pipefail
 : "${TRUSTGUARD_BINARY_SHA256:=}"
 
 # GitHub release base (override for mirrors / private caches).
+# If Macs time out on github.com (SSL/firewall), host binaries internally and set this.
 : "${TRUSTGUARD_DOWNLOAD_BASE:=https://github.com/NeuralTrust/trustguard-claude-code-plugin/releases/download}"
 
 # GitHub owner/repo for API asset download (private releases).
@@ -53,6 +54,12 @@ set -euo pipefail
 # Prefer the secrets file — do not commit tokens.
 : "${TRUSTGUARD_GITHUB_TOKEN:=}"
 : "${GITHUB_TOKEN:=}"
+
+# curl resilience (corporate networks often need retries + longer SSL handshake).
+: "${TRUSTGUARD_CURL_CONNECT_TIMEOUT:=60}"
+: "${TRUSTGUARD_CURL_MAX_TIME:=600}"
+: "${TRUSTGUARD_CURL_RETRIES:=5}"
+: "${TRUSTGUARD_CURL_RETRY_DELAY:=5}"
 
 # Optional secrets file (0600, root-owned). Lines: KEY=value
 # Deploy separately if you do not want the API key in the Kandji script body.
@@ -120,6 +127,17 @@ github_token() {
   elif [[ -n "${GITHUB_TOKEN}" ]]; then
     echo "${GITHUB_TOKEN}"
   fi
+}
+
+# Shared curl flags for GitHub / mirror downloads (retries survive flaky SSL).
+curl_download_flags() {
+  echo \
+    --connect-timeout "${TRUSTGUARD_CURL_CONNECT_TIMEOUT}" \
+    --max-time "${TRUSTGUARD_CURL_MAX_TIME}" \
+    --retry "${TRUSTGUARD_CURL_RETRIES}" \
+    --retry-delay "${TRUSTGUARD_CURL_RETRY_DELAY}" \
+    --retry-all-errors \
+    -L
 }
 
 validate_config() {
@@ -192,7 +210,9 @@ download_release_binary() {
   local version="$1" arch="$2" out="$3"
   local name="trustguard-claude-code_${version}_darwin_${arch}"
   local browser_url="${TRUSTGUARD_DOWNLOAD_BASE}/v${version}/${name}"
-  local token code asset_api
+  local token code asset_api curl_rc=0
+  # shellcheck disable=SC2207
+  local flags=($(curl_download_flags))
   token="$(github_token)"
 
   if [[ -n "$token" ]]; then
@@ -200,7 +220,12 @@ download_release_binary() {
     # and download with Accept: application/octet-stream.
     local meta
     meta="$(mktemp "${TMPDIR:-/tmp}/tg-rel-meta.XXXXXX")"
-    code="$(curl -sS -o "$meta" -w '%{http_code}' --connect-timeout 10 --max-time 60 \
+    code="$(curl -sS -o "$meta" -w '%{http_code}' \
+      --connect-timeout "${TRUSTGUARD_CURL_CONNECT_TIMEOUT}" \
+      --max-time 120 \
+      --retry "${TRUSTGUARD_CURL_RETRIES}" \
+      --retry-delay "${TRUSTGUARD_CURL_RETRY_DELAY}" \
+      --retry-all-errors \
       -H "Authorization: Bearer ${token}" \
       -H "Accept: application/vnd.github+json" \
       -H "X-GitHub-Api-Version: 2022-11-28" \
@@ -223,28 +248,31 @@ PY
     if [[ -z "$asset_api" ]]; then
       die "release v${version} has no asset named ${name}" 2
     fi
-    log "downloading private asset ${name} (API)"
-    code="$(curl -sS -L -o "$out" -w '%{http_code}' --connect-timeout 15 --max-time 300 \
+    log "downloading private asset ${name} (API, retries=${TRUSTGUARD_CURL_RETRIES})"
+    code="$(curl -sS -o "$out" -w '%{http_code}' "${flags[@]}" \
       -H "Authorization: Bearer ${token}" \
       -H "Accept: application/octet-stream" \
       -H "X-GitHub-Api-Version: 2022-11-28" \
-      "$asset_api" || true)"
-    if [[ "$code" != "200" ]]; then
+      "$asset_api")" && curl_rc=0 || curl_rc=$?
+    if [[ "$curl_rc" -ne 0 || "$code" != "200" ]]; then
       rm -f "$out"
-      die "asset download failed HTTP ${code} for ${name}" 2
+      die "asset download failed (curl_exit=${curl_rc} HTTP ${code:-?}) for ${name}. Network to api.github.com/objects? Try TRUSTGUARD_LOCAL_BINARY or internal TRUSTGUARD_DOWNLOAD_BASE" 2
     fi
     return 0
   fi
 
-  log "downloading ${browser_url}"
-  code="$(curl -sS -L -o "$out" -w '%{http_code}' --connect-timeout 15 --max-time 300 \
-    "$browser_url" || true)"
-  if [[ "$code" != "200" ]]; then
+  log "downloading ${browser_url} (retries=${TRUSTGUARD_CURL_RETRIES}, connect=${TRUSTGUARD_CURL_CONNECT_TIMEOUT}s)"
+  code="$(curl -sS -o "$out" -w '%{http_code}' "${flags[@]}" \
+    "$browser_url")" && curl_rc=0 || curl_rc=$?
+  if [[ "$curl_rc" -ne 0 || "$code" != "200" ]]; then
     rm -f "$out"
-    if [[ "$code" == "404" ]]; then
-      die "download 404: ${browser_url} — if the repo is private, set TRUSTGUARD_GITHUB_TOKEN (Contents: Read) and TRUSTGUARD_CLAUDE_CODE_VERSION=${version}" 2
+    if [[ "$curl_rc" -eq 28 || "$curl_rc" -eq 35 || "$curl_rc" -eq 56 ]]; then
+      die "download network/SSL failure (curl_exit=${curl_rc}) for ${browser_url}. From the Mac: curl -vI that URL. Fixes: allow github.com + *.githubusercontent.com egress, set HTTPS_PROXY, host a mirror (TRUSTGUARD_DOWNLOAD_BASE), or stage TRUSTGUARD_LOCAL_BINARY" 2
     fi
-    die "download failed HTTP ${code}: ${browser_url}" 2
+    if [[ "$code" == "404" ]]; then
+      die "download 404: ${browser_url} — wrong version or asset name; pin TRUSTGUARD_CLAUDE_CODE_VERSION" 2
+    fi
+    die "download failed (curl_exit=${curl_rc} HTTP ${code:-?}): ${browser_url}" 2
   fi
 }
 
