@@ -1,4 +1,4 @@
-.PHONY: build dist test lint install-local uninstall-local kandji-syntax
+.PHONY: build dist test lint install-local uninstall-local kandji-syntax release-plan
 
 VERSION ?= dev
 
@@ -21,6 +21,9 @@ kandji-syntax: ## Shell-check Kandji MDM scripts
 	@bash -n mdm/kandji/install-trustguard-claude-code.sh
 	@bash -n mdm/kandji/audit-trustguard-claude-code.sh
 	@echo "kandji scripts: syntax ok"
+
+release-plan: ## Print what the Release workflow would do (mode + version)
+	@python3 scripts/release.py plan
 
 # Install binary for local testing. Load the plugin with:
 #   claude --plugin-dir ./trustguard
