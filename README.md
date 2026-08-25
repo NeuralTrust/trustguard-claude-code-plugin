@@ -72,12 +72,16 @@ claude --plugin-dir ./trustguard
 
 ## TrustGate MCP (optional)
 
-Add a **Connector** in Claude (not plugin config):
+The plugin ships a **TrustGate** entry under **Connectors**. Configure with env:
 
-- URL: `https://{host}/{consumer-slug}/mcp` from TrustGate Connect  
-- Auth: consumer API key header if required  
+```bash
+export TRUSTGATE_MCP_URL="https://{host}/{consumer-slug}/mcp"
+export TRUSTGATE_MCP_API_KEY="…"   # consumer key; omit for OAuth
+# export TRUSTGATE_GATEWAY_SLUG="…"  # hybrid only
+```
 
-Do not paste the TrustGuard `tgk_…` key into the connector.
+Or paste the real HTTPS URL when Claude opens **Add connector**.  
+Do not put the TrustGuard `tgk_…` collector key in the MCP connector.
 
 ## Event → evaluation mapping
 

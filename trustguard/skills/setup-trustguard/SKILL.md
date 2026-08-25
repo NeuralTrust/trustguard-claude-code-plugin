@@ -7,7 +7,7 @@ description: Configure the TrustGuard collector API key and data URL for the Cla
 
 The **collector API key is not in the Claude Plugins UI** (Skills / Connectors / Hooks tabs). Those tabs only show what the plugin ships. Hooks read credentials from a **local config file** (or env / MDM).
 
-TrustGate MCP is separate: add it under **Connectors** with a real `https://…/mcp` URL — not via this plugin.
+TrustGate MCP appears under the plugin **Connectors** tab as **TrustGate**. Wire it with env vars (below) or paste a real `https://…/mcp` URL when Claude prompts to add the connector.
 
 ## 1. Create the config file
 
@@ -63,12 +63,17 @@ IT drops the same JSON (with org `api_key`) at:
 
 Then developers cannot override key / data URL / fail mode.
 
-## TrustGate MCP Gateway (optional, separate)
+## TrustGate MCP Gateway (optional)
 
-1. Claude → **Connectors** (or plugin Connectors → Add)  
-2. Name: `TrustGate`  
-3. URL: full MCP endpoint from TrustGate Connect, e.g. `https://{host}/{consumer-slug}/mcp`  
-4. API key header if needed: consumer key — **not** `tgk_…`
+**Plugins → Trustguard → Connectors → TrustGate**, or set env before starting Claude:
+
+```bash
+export TRUSTGATE_MCP_URL="https://{host}/{consumer-slug}/mcp"
+export TRUSTGATE_MCP_API_KEY="…"   # consumer key; omit for OAuth
+# export TRUSTGATE_GATEWAY_SLUG="…"  # hybrid only
+```
+
+If the UI shows a literal `${TRUSTGATE_MCP_URL}`, paste the real HTTPS URL from TrustGate **Connect** instead. Never put the TrustGuard `tgk_…` collector key there.
 
 ## Env alternatives
 

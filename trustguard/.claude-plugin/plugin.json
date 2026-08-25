@@ -1,7 +1,7 @@
 {
   "name": "trustguard",
-  "version": "0.1.2",
-  "description": "TrustGuard AI firewall for Claude Code (lifecycle hooks). Set the collector key in ~/.trustguard/claude-code.json (see skill setup-trustguard). TrustGate MCP is added separately as a Connector.",
+  "version": "0.1.3",
+  "description": "TrustGuard AI firewall for Claude Code (lifecycle hooks) plus TrustGate MCP Gateway connector. Collector key: ~/.trustguard/claude-code.json or Kandji MDM. MCP: set TRUSTGATE_MCP_URL (and optional API key) or configure the TrustGate connector.",
   "author": {
     "name": "NeuralTrust",
     "email": "hello@neuraltrust.ai",
@@ -14,9 +14,12 @@
     "security",
     "firewall",
     "trustguard",
+    "trustgate",
+    "mcp",
     "enterprise",
     "hooks"
   ],
   "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json",
   "skills": "./skills/"
 }
