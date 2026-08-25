@@ -119,8 +119,14 @@ Without the plugin, the binary sits idle (no hooks fire).
 
 ## TrustGate MCP (optional)
 
-Not part of this script or the plugin package. Users add a **custom connector**
-under Customize → Connectors (URL fully editable). Do not put `tgk_…` there.
+Not part of this script. Users set the plugin option once:
+
+```bash
+claude plugin enable trustguard@neuraltrust \
+  --config trustgate_mcp_url=https://HOST/SLUG/mcp
+```
+
+Do not put `tgk_…` there (consumer MCP key only).
 
 ## Uninstall (manual)
 
