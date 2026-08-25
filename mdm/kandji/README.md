@@ -119,8 +119,10 @@ Without the plugin, the binary sits idle (no hooks fire).
 
 ## TrustGate MCP (optional)
 
-Not part of this script. Add a **Connector** in Claude with the MCP URL from
-TrustGate Connect. Do not put `tgk_…` there.
+Not part of this script. The plugin **Connectors** tab lists **TrustGate**.
+Set `TRUSTGATE_MCP_URL` (and optional consumer key) via user env / another
+profile payload, or paste the HTTPS URL in the Add connector dialog.
+Do not put the TrustGuard `tgk_…` there.
 
 ## Uninstall (manual)
 
