@@ -16,12 +16,12 @@ BASE_URL="${TRUSTGUARD_CLAUDE_CODE_DOWNLOAD_BASE:-https://github.com/NeuralTrust
 BIN_DIR="${TRUSTGUARD_CLAUDE_CODE_BIN_DIR:-$HOME/.trustguard/bin}"
 
 # Per-platform SHA-256 of the release binaries (filled per release).
-SHA256_darwin_amd64=""
-SHA256_darwin_arm64=""
-SHA256_linux_amd64=""
-SHA256_linux_arm64=""
-SHA256_windows_amd64=""
-SHA256_windows_arm64=""
+SHA256_darwin_amd64="ee0ffd5498dfb853fa100568677a4006c7b864d769fe416d2ca8d2ff81d0b534"
+SHA256_darwin_arm64="ca6b795a200e3e00e2a85bbf87893afdc4b52d3b223c0e4481d679004eca41ae"
+SHA256_linux_amd64="fbbff4a4b850dae7a43b6aa7996d06ca93d2fc25650169013c2fe7bd6e693f3d"
+SHA256_linux_arm64="b2d0b4ade003e250eb8b2e9ed77035f20510153364758e04ca288fa934d745ea"
+SHA256_windows_amd64="117c21a35858ab19bf93b83f6b790c245bbd01c8413b791decdd692e48fb4e9c"
+SHA256_windows_arm64="5198f9665537d2fbe20ab4a7a2efb61037f9cab2eb0371f112c4ae3dddee141e"
 
 fail_open() {
     echo "trustguard-claude-code bootstrap: $1 — allowing without evaluation" >&2

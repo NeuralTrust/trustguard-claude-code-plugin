@@ -140,14 +140,19 @@ resolve_version() {
     echo "local"
     return
   fi
-  # Latest tag from GitHub (v0.1.2 → 0.1.2)
-  local tag
-  tag="$(curl -fsSL --connect-timeout 10 --max-time 60 \
-    "https://api.github.com/repos/NeuralTrust/trustguard-claude-code-plugin/releases/latest" \
-    | /usr/bin/python3 -c 'import sys,json; print(json.load(sys.stdin).get("tag_name",""))' 2>/dev/null || true)"
+  # Latest tag from GitHub (v0.1.2 → 0.1.2). Prefer pinning TRUSTGUARD_CLAUDE_CODE_VERSION.
+  local tag body code
+  body="$(mktemp "${TMPDIR:-/tmp}/tg-release.XXXXXX")"
+  code="$(curl -sS -o "$body" -w '%{http_code}' --connect-timeout 10 --max-time 60 \
+    -H 'Accept: application/vnd.github+json' \
+    "https://api.github.com/repos/NeuralTrust/trustguard-claude-code-plugin/releases/latest" || true)"
+  if [[ "$code" == "200" ]]; then
+    tag="$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("tag_name",""))' "$body" 2>/dev/null || true)"
+  fi
+  rm -f "$body"
   tag="${tag#v}"
   if [[ -z "$tag" ]]; then
-    die "could not resolve latest release; set TRUSTGUARD_CLAUDE_CODE_VERSION or TRUSTGUARD_LOCAL_BINARY" 2
+    die "could not resolve latest release (HTTP ${code:-?}). Publish a GitHub Release, or set TRUSTGUARD_CLAUDE_CODE_VERSION=0.1.12 / TRUSTGUARD_LOCAL_BINARY" 2
   fi
   echo "$tag"
 }
