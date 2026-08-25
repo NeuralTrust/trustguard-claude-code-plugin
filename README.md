@@ -70,19 +70,19 @@ make install-local
 claude --plugin-dir ./trustguard
 ```
 
-## TrustGate MCP (optional) — paste the URL in Connectors
+## TrustGate MCP (optional) — add a custom connector (editable URL)
 
-Claude Desktop’s **Add custom connector** dialog does **not** expand
-`${user_config…}` placeholders (official plugin docs apply to Claude Code CLI
-runtime substitution; the desktop form validates a literal `https…` string).
+**Do not** use **Plugins → Trustguard → Connectors**. Desktop locks the URL
+when the connector is defined by a plugin `mcpServers` entry, so per-org MCP
+URLs cannot be typed there. This plugin does **not** ship `mcpServers`.
 
-The plugin therefore ships TrustGate with URL seed `https://`. You edit it:
+Add TrustGate as a normal custom connector:
 
-1. **Plugins → Trustguard → Connectors → TrustGate → Add**
-2. URL field: replace with full TrustGate Connect URL  
-   `https://{host}/{consumer-slug}/mcp`
-3. Optional consumer API key in Advanced — **not** TrustGuard `tgk_…`
-4. **Add**
+1. **Customize → Connectors** (or Settings → Connectors) → **Add custom connector**
+2. Name: `TrustGate`
+3. URL: paste `https://{host}/{consumer-slug}/mcp` from TrustGate Connect  
+   (field is fully editable)
+4. Optional consumer API key — **not** TrustGuard `tgk_…`
 
 CLI:
 
