@@ -11,7 +11,7 @@
 # The VERSION and SHA256_* table are updated per release.
 set -u
 
-VERSION="0.1.5"
+VERSION="0.1.6"
 BASE_URL="${TRUSTGUARD_CLAUDE_CODE_DOWNLOAD_BASE:-https://github.com/NeuralTrust/trustguard-claude-code-plugin/releases/download}"
 BIN_DIR="${TRUSTGUARD_CLAUDE_CODE_BIN_DIR:-$HOME/.trustguard/bin}"
 

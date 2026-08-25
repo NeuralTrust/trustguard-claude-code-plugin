@@ -1,11 +1,17 @@
 ---
 name: setup-trustguard
-description: Configure TrustGuard collector key and TrustGate MCP URL for the Claude Code plugin.
+description: Configure TrustGuard collector key and add TrustGate MCP as a custom Connector with an editable URL.
 ---
 
 # Configure TrustGuard + TrustGate
 
-## Collector key (hooks) — not in the Connectors dialog
+## Why MCP is not inside this plugin
+
+Claude Desktop **locks** the URL field when a connector comes from a plugin
+`mcpServers` entry. You cannot type a per-org TrustGate URL there. So this
+plugin only ships **hooks** (firewall). MCP is a normal custom connector.
+
+## 1. Collector key (hooks)
 
 ```bash
 mkdir -p ~/.trustguard && chmod 700 ~/.trustguard
@@ -19,31 +25,30 @@ EOF
 chmod 600 ~/.trustguard/claude-code.json
 ```
 
-Or Kandji MDM → `/Library/Application Support/TrustGuard/claude-code.json`.
+Or Kandji → `/Library/Application Support/TrustGuard/claude-code.json`.
 
-## TrustGate MCP URL — paste in Connectors
+## 2. TrustGate MCP — custom connector (URL editable)
 
-Desktop **does not** resolve `${user_config…}` in the Add connector form. The plugin
-ships a TrustGate connector with URL prefilled as `https://` so the field is valid
-to edit.
+### Desktop / Claude.ai
 
-1. **Plugins → Trustguard → Connectors → TrustGate → Add** (or Configure)
-2. In the **URL** field, replace `https://` with your full endpoint from TrustGate Connect:
+1. Open **Customize → Connectors** (sidebar), **not** the plugin Connectors tab  
+   (or **Settings → Connectors**)
+2. **Add custom connector** / **Add**
+3. **Name:** `TrustGate` (any label)
+4. **URL:** paste the full endpoint from TrustGate **Connect**  
+   `https://{host}/{consumer-slug}/mcp`  
+   This field is **editable** on a hand-added connector.
+5. Auth: consumer API key if required (not TrustGuard `tgk_…`)
+6. **Add**
 
-   `https://{host}/{consumer-slug}/mcp`
-
-3. If you need an API key header, use **Advanced** / auth fields for the consumer
-   key — **not** the TrustGuard `tgk_…` collector key.
-4. **Add**
-
-### Claude Code CLI (alternative)
+### Claude Code CLI
 
 ```bash
 claude mcp add --transport http TrustGate "https://{host}/{consumer-slug}/mcp" \
   --header "X-AG-API-Key: YOUR_CONSUMER_KEY"
 ```
 
-## Verify hooks
+## 3. Verify hooks
 
 ```bash
 echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"session_id":"t1"}' \
