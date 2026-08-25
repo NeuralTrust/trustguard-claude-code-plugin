@@ -119,17 +119,15 @@ Without the plugin, the binary sits idle (no hooks fire).
 
 ## TrustGate MCP (optional)
 
-The plugin prompts for `trustgate_mcp_url` (and optional API key / gateway
-slug) via Claude Code `userConfig` when the user enables the plugin. Non-interactive:
+URL only — OAuth handles auth. Prompted on enable, or non-interactive:
 
 ```bash
 claude plugin install trustguard@neuraltrust \
   --config trustgate_mcp_url=https://HOST/SLUG/mcp
 ```
 
-Org-wide non-sensitive defaults can also be pushed under
-`pluginConfigs` in managed settings (see Claude Code settings-reference). Do
-not put `tgk_…` there (consumer MCP key only).
+Org-wide URL defaults can go under `pluginConfigs` in managed settings.
+Do not put `tgk_…` there.
 
 ## Uninstall (manual)
 

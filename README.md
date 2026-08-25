@@ -70,49 +70,44 @@ make install-local
 claude --plugin-dir ./trustguard
 ```
 
-## TrustGate MCP (bundled) — plugin `userConfig`
+## TrustGate MCP (bundled) — URL only, OAuth
 
-The plugin declares the MCP URL in `userConfig` and substitutes it into the
-bundled HTTP server with `${user_config.trustgate_mcp_url}` (Claude Code
-plugins-reference pattern for `url` / `headers` on `http` servers).
+Only the MCP URL is required. Auth is OAuth against the endpoint (no API key,
+no gateway slug headers).
 
 ```json
 "userConfig": {
-  "trustgate_mcp_url": { "type": "string", "title": "TrustGate MCP URL", "required": true },
-  "trustgate_mcp_api_key": { "type": "string", "sensitive": true, "required": false, "default": "" },
-  "trustgate_gateway_slug": { "type": "string", "required": false, "default": "" }
+  "trustgate_mcp_url": {
+    "type": "string",
+    "title": "TrustGate MCP URL",
+    "required": true
+  }
 },
 "mcpServers": {
   "TrustGate": {
     "type": "http",
-    "url": "${user_config.trustgate_mcp_url}",
-    "headers": {
-      "X-AG-API-Key": "${user_config.trustgate_mcp_api_key}",
-      "X-AG-Gateway-Slug": "${user_config.trustgate_gateway_slug}"
-    }
+    "url": "${user_config.trustgate_mcp_url}"
   }
 }
 ```
 
-**How to set the values**
+**How to set the URL**
 
-1. **On enable** — Claude Code prompts for the fields when you enable the plugin.
-2. **CLI** (non-interactive):
+1. **On enable** — Claude Code prompts for **TrustGate MCP URL**.
+2. **CLI**:
 
 ```bash
 claude plugin install trustguard@neuraltrust \
-  --config trustgate_mcp_url=https://HOST/CONSUMER-SLUG/mcp \
-  --config trustgate_mcp_api_key=YOUR_CONSUMER_KEY
+  --config trustgate_mcp_url=https://HOST/CONSUMER-SLUG/mcp
 ```
 
 3. **Already installed** — `/plugin` → Installed → **trustguard** → configure
-   options, then `/reload-plugins`.
+   options, then `/reload-plugins`. Complete OAuth from `/mcp` if prompted.
 
-Do **not** paste the URL into the generic “Add custom connector” dialog; that
-is not the `userConfig` form and often shows the unresolved placeholder.
+Do **not** paste the URL into the generic “Add custom connector” dialog.
 
-Verify with `/mcp`: **TrustGate** should be connected. MCP key = TrustGate
-**consumer** key, never the TrustGuard `tgk_…`.
+Verify with `/mcp`: **TrustGate** connected. Never put the TrustGuard `tgk_…`
+collector key on the MCP URL.
 
 ## Event → evaluation mapping
 
