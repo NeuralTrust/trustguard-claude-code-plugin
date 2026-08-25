@@ -70,37 +70,49 @@ make install-local
 claude --plugin-dir ./trustguard
 ```
 
-## TrustGate MCP (bundled) — set the URL via environment variables
+## TrustGate MCP (bundled) — plugin `userConfig`
 
-The plugin ships a **TrustGate** MCP server that reads its endpoint from
-environment variables (`${TRUSTGATE_MCP_URL:-}`). Until the variable is set,
-`/mcp` shows the server as `not configured` — expected, not an error.
-
-Add the variables to the `env` block of `~/.claude/settings.json`:
+The plugin declares the MCP URL in `userConfig` and substitutes it into the
+bundled HTTP server with `${user_config.trustgate_mcp_url}` (Claude Code
+plugins-reference pattern for `url` / `headers` on `http` servers).
 
 ```json
-{
-  "env": {
-    "TRUSTGATE_MCP_URL": "https://HOST/CONSUMER-SLUG/mcp",
-    "TRUSTGATE_MCP_API_KEY": "YOUR_CONSUMER_KEY"
+"userConfig": {
+  "trustgate_mcp_url": { "type": "string", "title": "TrustGate MCP URL", "required": true },
+  "trustgate_mcp_api_key": { "type": "string", "sensitive": true, "required": false, "default": "" },
+  "trustgate_gateway_slug": { "type": "string", "required": false, "default": "" }
+},
+"mcpServers": {
+  "TrustGate": {
+    "type": "http",
+    "url": "${user_config.trustgate_mcp_url}",
+    "headers": {
+      "X-AG-API-Key": "${user_config.trustgate_mcp_api_key}",
+      "X-AG-Gateway-Slug": "${user_config.trustgate_gateway_slug}"
+    }
   }
 }
 ```
 
-Optional: `TRUSTGATE_GATEWAY_SLUG` (hybrid / private data planes). You can also
-export the same variables in your shell profile, or push them org-wide via
-managed settings (MDM).
+**How to set the values**
 
-Restart the session (or `/reload-plugins`), then verify with `/mcp`:
-**TrustGate** should show `connected`.
+1. **On enable** — Claude Code prompts for the fields when you enable the plugin.
+2. **CLI** (non-interactive):
 
-Why env vars and not plugin options: `${user_config.*}` substitution inside
-plugin `mcpServers` configs fails silently in current Claude Code
-([anthropics/claude-code#51573](https://github.com/anthropics/claude-code/issues/51573)),
-and the Desktop "Add custom connector" dialog locks plugin-provided URLs.
-Environment expansion `${VAR:-default}` is the officially supported path.
+```bash
+claude plugin install trustguard@neuraltrust \
+  --config trustgate_mcp_url=https://HOST/CONSUMER-SLUG/mcp \
+  --config trustgate_mcp_api_key=YOUR_CONSUMER_KEY
+```
 
-MCP key = TrustGate **consumer** key, never the TrustGuard `tgk_…`.
+3. **Already installed** — `/plugin` → Installed → **trustguard** → configure
+   options, then `/reload-plugins`.
+
+Do **not** paste the URL into the generic “Add custom connector” dialog; that
+is not the `userConfig` form and often shows the unresolved placeholder.
+
+Verify with `/mcp`: **TrustGate** should be connected. MCP key = TrustGate
+**consumer** key, never the TrustGuard `tgk_…`.
 
 ## Event → evaluation mapping
 

@@ -1,7 +1,7 @@
 {
   "name": "trustguard",
-  "version": "0.1.8",
-  "description": "TrustGuard AI firewall for Claude Code (lifecycle hooks) plus TrustGate MCP Gateway. MCP URL via TRUSTGATE_MCP_URL env (settings.json env block). Collector key: ~/.trustguard/claude-code.json or Kandji.",
+  "version": "0.1.9",
+  "description": "TrustGuard AI firewall for Claude Code (lifecycle hooks) plus TrustGate MCP Gateway. Claude Code prompts for the MCP URL when you enable the plugin.",
   "author": {
     "name": "NeuralTrust",
     "email": "hello@neuraltrust.ai",
@@ -20,6 +20,38 @@
     "hooks"
   ],
   "hooks": "./hooks/hooks.json",
-  "mcpServers": "./.mcp.json",
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "userConfig": {
+    "trustgate_mcp_url": {
+      "type": "string",
+      "title": "TrustGate MCP URL",
+      "description": "Full MCP endpoint from TrustGate Connect (e.g. https://host/consumer-slug/mcp).",
+      "required": true
+    },
+    "trustgate_mcp_api_key": {
+      "type": "string",
+      "title": "TrustGate MCP API key",
+      "description": "Optional consumer API key (X-AG-API-Key). Leave empty for OAuth. Not the TrustGuard tgk_… collector key.",
+      "sensitive": true,
+      "required": false,
+      "default": ""
+    },
+    "trustgate_gateway_slug": {
+      "type": "string",
+      "title": "TrustGate gateway slug",
+      "description": "Optional X-AG-Gateway-Slug for hybrid / private data planes. Leave empty on SaaS.",
+      "required": false,
+      "default": ""
+    }
+  },
+  "mcpServers": {
+    "TrustGate": {
+      "type": "http",
+      "url": "${user_config.trustgate_mcp_url}",
+      "headers": {
+        "X-AG-API-Key": "${user_config.trustgate_mcp_api_key}",
+        "X-AG-Gateway-Slug": "${user_config.trustgate_gateway_slug}"
+      }
+    }
+  }
 }
