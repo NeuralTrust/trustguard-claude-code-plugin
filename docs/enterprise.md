@@ -36,6 +36,15 @@ the pinned release download (SHA-256 verified).
   `/plugin marketplace add <org>/<repo>`.
 - Or pin `claude --plugin-dir` / managed settings to a synced checkout.
 
+## Collector key is not in the Claude Plugins UI
+
+Org **Plugins → Trustguard** shows Skills / Connectors / Hooks only. There is
+no field for `tgk_…`. Ship the managed JSON above (or have each laptop write
+`~/.trustguard/claude-code.json`).
+
+TrustGate MCP: team **Connectors** with a real HTTPS MCP URL — not the
+collector key file.
+
 ## Inference Hooks vs this plugin
 
 Do **not** point this plugin at an Anthropic Inference Hook secret. Use a

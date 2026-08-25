@@ -1,7 +1,7 @@
 {
   "name": "trustguard",
-  "version": "0.1.1",
-  "description": "AI firewall for Claude Code via lifecycle hooks, plus TrustGate MCP Gateway. For organizations that cannot use Anthropic Inference Hooks (Enterprise org hook).",
+  "version": "0.1.2",
+  "description": "TrustGuard AI firewall for Claude Code (lifecycle hooks). Set the collector key in ~/.trustguard/claude-code.json (see skill setup-trustguard). TrustGate MCP is added separately as a Connector.",
   "author": {
     "name": "NeuralTrust",
     "email": "hello@neuraltrust.ai",
@@ -14,53 +14,9 @@
     "security",
     "firewall",
     "trustguard",
-    "trustgate",
-    "mcp",
     "enterprise",
     "hooks"
   ],
   "hooks": "./hooks/hooks.json",
-  "mcpServers": "./.mcp.json",
-  "skills": "./skills/",
-  "userConfig": {
-    "trustguard_data_url": {
-      "type": "string",
-      "title": "TrustGuard data URL",
-      "description": "TrustGuard data-plane base URL (serves /v1/evaluate), e.g. https://data.example.neuraltrust.ai. No trailing /v1/evaluate.",
-      "required": true
-    },
-    "trustguard_api_key": {
-      "type": "string",
-      "title": "TrustGuard collector API key",
-      "description": "Collector API key (tgk_…). Create a Claude Code / IDE collector in TrustGuard. Not an Inference Hook secret (whsec_…) and not a TrustGate MCP key.",
-      "sensitive": true,
-      "required": true
-    },
-    "trustguard_fail_mode": {
-      "type": "string",
-      "title": "Fail mode",
-      "description": "When TrustGuard is unreachable: open (allow) or closed (deny). Default open.",
-      "default": "open",
-      "required": false
-    },
-    "trustgate_mcp_url": {
-      "type": "string",
-      "title": "TrustGate MCP URL",
-      "description": "Optional. Full MCP endpoint from the TrustGate Connect tab, e.g. https://{host}/{consumer-slug}/mcp. Leave empty to skip the MCP Gateway.",
-      "required": false
-    },
-    "trustgate_mcp_api_key": {
-      "type": "string",
-      "title": "TrustGate MCP API key",
-      "description": "Optional. Consumer API key for X-AG-API-Key. Leave empty for OAuth consumers. Not the TrustGuard tgk_… key.",
-      "sensitive": true,
-      "required": false
-    },
-    "trustgate_gateway_slug": {
-      "type": "string",
-      "title": "TrustGate gateway slug",
-      "description": "Optional. X-AG-Gateway-Slug for hybrid / private data planes. Leave empty on SaaS when the host already identifies the gateway.",
-      "required": false
-    }
-  }
+  "skills": "./skills/"
 }
