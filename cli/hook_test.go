@@ -140,8 +140,8 @@ func TestMCPPreToolUseScoredAsToolsCall(t *testing.T) {
 	}
 }
 
-func TestPreToolUseTransformAskBecomesContext(t *testing.T) {
-	srv, _ := stubGuard(t, EvaluateResponse{
+func TestPreToolUseTransformAskEmitsAsk(t *testing.T) {
+	srv, captured := stubGuard(t, EvaluateResponse{
 		Status: "transform",
 		Findings: []Finding{{
 			Source: FindingSource{Kind: "detector", DetectorName: "dlp"},
@@ -156,11 +156,35 @@ func TestPreToolUseTransformAskBecomesContext(t *testing.T) {
 		"tool_input":      map[string]any{"command": "echo sk-test"},
 		"session_id":      "thr_1",
 	})
-	if out.Decision == "block" {
-		t.Fatalf("ask must not deny PreToolUse, got %+v", out)
+	if out.HookSpecificOutput == nil || out.HookSpecificOutput.PermissionDecision != "ask" {
+		t.Fatalf("expected PreToolUse ask, got %+v", out)
 	}
-	if out.HookSpecificOutput == nil || out.HookSpecificOutput.AdditionalContext == "" {
-		t.Fatalf("expected additionalContext warning, got %+v", out)
+	attrs := (*captured)["attributes"].(map[string]any)
+	if attrs["tool"].(map[string]any)["name"] != "Bash" {
+		t.Fatalf("expected attributes.tool.name=Bash, got %v", attrs)
+	}
+}
+
+func TestPreToolUseGateAskEmitsAsk(t *testing.T) {
+	srv, _ := stubGuard(t, EvaluateResponse{
+		Status: "ask",
+		Findings: []Finding{{
+			Source:  FindingSource{Kind: "gate", GateName: "confirm-bash"},
+			Signal:  &FindingSignal{Type: "gate_ask"},
+			Outcome: &FindingOutcome{Action: "ask"},
+		}},
+	})
+	out := invokeHook(t, testConfig(srv.URL), map[string]any{
+		"hook_event_name": "PreToolUse",
+		"tool_name":       "Bash",
+		"tool_input":      map[string]any{"command": "rm -rf /tmp/demo"},
+		"session_id":      "thr_1",
+	})
+	if out.HookSpecificOutput == nil || out.HookSpecificOutput.PermissionDecision != "ask" {
+		t.Fatalf("expected gate ask, got %+v", out)
+	}
+	if !strings.Contains(out.HookSpecificOutput.PermissionDecisionReason, "confirm-bash") {
+		t.Fatalf("expected gate name in reason, got %+v", out.HookSpecificOutput)
 	}
 }
 
@@ -209,6 +233,25 @@ func TestPostToolUseCleanResultNoContext(t *testing.T) {
 	})
 	if out.Decision != "" || out.HookSpecificOutput != nil {
 		t.Fatalf("expected empty allow output, got %+v", out)
+	}
+}
+
+func TestPostToolUseGateAskDoesNotBlock(t *testing.T) {
+	srv, _ := stubGuard(t, EvaluateResponse{
+		Status: "ask",
+		Findings: []Finding{{
+			Source:  FindingSource{Kind: "gate", GateName: "confirm-bash"},
+			Outcome: &FindingOutcome{Action: "ask"},
+		}},
+	})
+	out := invokeHook(t, testConfig(srv.URL), map[string]any{
+		"hook_event_name": "PostToolUse",
+		"tool_name":       "Bash",
+		"tool_response":   "ok",
+		"session_id":      "thr_1",
+	})
+	if out.Decision == "block" {
+		t.Fatalf("gate ask on PostToolUse must not replace the result, got %+v", out)
 	}
 }
 

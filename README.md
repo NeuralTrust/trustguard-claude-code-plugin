@@ -102,12 +102,12 @@ Or `claude --plugin-dir ./trustguard` from a clone.
 
 ## Event → evaluation mapping
 
-| Claude Code event | Protocol | Direction | On block |
-| --- | --- | --- | --- |
-| `UserPromptSubmit` | `llm` | input | `decision: "block"` |
-| `PreToolUse` (`Bash`) | `all` | input | `permissionDecision: "deny"` |
-| `PreToolUse` (other / MCP tools) | `mcp` tools/call | input | same deny |
-| `PostToolUse` | `mcp` result | output | `decision: "block"` + untrusted guidance |
+| Claude Code event | Protocol | Direction | On block | On ask |
+| --- | --- | --- | --- | --- |
+| `UserPromptSubmit` | `llm` | input | `decision: "block"` | continues with a warning (no confirmation UI) |
+| `PreToolUse` (`Bash`) | `all` | input | `permissionDecision: "deny"` | `permissionDecision: "ask"` |
+| `PreToolUse` (other / MCP tools) | `mcp` tools/call | input | same deny | same ask |
+| `PostToolUse` | `mcp` result | output | `decision: "block"` + untrusted guidance | allowed — must not re-challenge an approved tool |
 
 Stamps: `collector.type=ide`, `source.application=claude-code-plugin`,
 `consumer_id` prefixed `claude-code:`.
