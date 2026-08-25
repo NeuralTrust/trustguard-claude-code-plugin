@@ -70,23 +70,26 @@ make install-local
 claude --plugin-dir ./trustguard
 ```
 
-## TrustGate MCP (optional) — enter the URL in the UI
+## TrustGate MCP (optional) — paste the URL in Connectors
 
-1. **Plugins → Trustguard → Customize** (or plugin menu → **Configure options**)
-2. **TrustGate MCP URL** — paste `https://{host}/{consumer-slug}/mcp` from TrustGate Connect
-3. Optional: MCP API key (consumer), gateway slug (hybrid only)
+Claude Desktop’s **Add custom connector** dialog does **not** expand
+`${user_config…}` placeholders (official plugin docs apply to Claude Code CLI
+runtime substitution; the desktop form validates a literal `https…` string).
 
-That form is the supported place to **type the URL**. Values are stored as plugin
-`userConfig` and wired into the **TrustGate** connector automatically.
+The plugin therefore ships TrustGate with URL seed `https://`. You edit it:
+
+1. **Plugins → Trustguard → Connectors → TrustGate → Add**
+2. URL field: replace with full TrustGate Connect URL  
+   `https://{host}/{consumer-slug}/mcp`
+3. Optional consumer API key in Advanced — **not** TrustGuard `tgk_…`
+4. **Add**
+
+CLI:
 
 ```bash
-# CLI alternative
-claude plugin enable trustguard@neuraltrust \
-  --config trustgate_mcp_url=https://host/slug/mcp
+claude mcp add --transport http TrustGate "https://host/slug/mcp" \
+  --header "X-AG-API-Key: YOUR_CONSUMER_KEY"
 ```
-
-Do not put the TrustGuard `tgk_…` collector key in the MCP fields.  
-If **Add connector** shows `${user_config…}`, cancel it and use **Configure options**.
 
 ## Event → evaluation mapping
 

@@ -1,18 +1,11 @@
 ---
 name: setup-trustguard
-description: Configure TrustGuard collector key (file/MDM) and TrustGate MCP URL (plugin options). Use when enabling Trustguard or hooks/MCP are not working.
+description: Configure TrustGuard collector key and TrustGate MCP URL for the Claude Code plugin.
 ---
 
 # Configure TrustGuard + TrustGate
 
-Two different credentials, two places:
-
-| What | Where you enter it |
-| --- | --- |
-| TrustGuard collector `tgk_…` | File or Kandji — **not** the Plugins form |
-| TrustGate MCP URL (+ optional key) | **Plugins → Trustguard → Customize / Configure options** |
-
-## 1. Collector key (hooks / firewall)
+## Collector key (hooks) — not in the Connectors dialog
 
 ```bash
 mkdir -p ~/.trustguard && chmod 700 ~/.trustguard
@@ -26,43 +19,31 @@ EOF
 chmod 600 ~/.trustguard/claude-code.json
 ```
 
-Enterprise: Kandji script writes  
-`/Library/Application Support/TrustGuard/claude-code.json` (locked).
+Or Kandji MDM → `/Library/Application Support/TrustGuard/claude-code.json`.
 
-Do **not** use `whsec_…` or the TrustGate MCP consumer key here.
+## TrustGate MCP URL — paste in Connectors
 
-## 2. TrustGate MCP URL (Connectors)
+Desktop **does not** resolve `${user_config…}` in the Add connector form. The plugin
+ships a TrustGate connector with URL prefilled as `https://` so the field is valid
+to edit.
 
-In Claude:
+1. **Plugins → Trustguard → Connectors → TrustGate → Add** (or Configure)
+2. In the **URL** field, replace `https://` with your full endpoint from TrustGate Connect:
 
-1. **Plugins → Trustguard**
-2. Open **Customize** or the plugin menu → **Configure options**
-3. Fill:
-   - **TrustGate MCP URL** — `https://{host}/{consumer-slug}/mcp` from TrustGate Connect
-   - **TrustGate MCP API key** — optional consumer key (not `tgk_…`)
-   - **Gateway slug** — only hybrid / private DP
+   `https://{host}/{consumer-slug}/mcp`
 
-That is how you **type the URL**. The Connectors tab then uses the saved value for the **TrustGate** server.
+3. If you need an API key header, use **Advanced** / auth fields for the consumer
+   key — **not** the TrustGuard `tgk_…` collector key.
+4. **Add**
 
-CLI equivalent:
-
-```bash
-claude plugin enable trustguard@neuraltrust \
-  --config trustgate_mcp_url=https://host/slug/mcp \
-  --config trustgate_mcp_api_key=YOUR_CONSUMER_KEY
-```
-
-If **Add connector** shows a literal `${user_config…}` string, cancel that dialog and use **Configure options** instead — that form is the real URL field.
-
-## 3. Binary (if needed)
+### Claude Code CLI (alternative)
 
 ```bash
-trustguard-claude-code version \
-  || ls "/Library/Application Support/TrustGuard/bin/" \
-  || ls ~/.trustguard/bin/
+claude mcp add --transport http TrustGate "https://{host}/{consumer-slug}/mcp" \
+  --header "X-AG-API-Key: YOUR_CONSUMER_KEY"
 ```
 
-## 4. Verify hooks
+## Verify hooks
 
 ```bash
 echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"session_id":"t1"}' \
