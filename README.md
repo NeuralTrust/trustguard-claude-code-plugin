@@ -35,9 +35,30 @@ make install-local
 claude --plugin-dir ./trustguard
 ```
 
-Then write `~/.trustguard/claude-code.json`:
+### Configure credentials
+
+**Preferred (org Plugins / local install):** when you enable the plugin, Claude
+Code prompts for `userConfig`:
+
+| Field | What |
+|---|---|
+| TrustGuard data URL | Data-plane base URL (`https://…`, no `/v1/evaluate`) |
+| TrustGuard collector API key | `tgk_…` from a Claude Code / IDE collector (`sensitive`) |
+| Fail mode | `open` or `closed` (default `open`) |
+| TrustGate MCP URL | Optional full MCP endpoint from TrustGate Connect |
+| TrustGate MCP API key | Optional consumer key (`X-AG-API-Key`), not `tgk_…` |
+| TrustGate gateway slug | Optional hybrid / private data plane |
+
+Sensitive values go to the OS keychain (or `~/.claude/.credentials.json`).
+Non-sensitive options land in `~/.claude/settings.json` under `pluginConfigs`.
+
+Create a **Claude Code** (or generic IDE) collector in TrustGuard and mint the
+key. Do not reuse the Anthropic Inference Hook secret (`whsec_…`).
+
+**Alternatives** (same binary; priority: MDM file → user file → env → plugin prompt):
 
 ```json
+// ~/.trustguard/claude-code.json
 {
   "data_url": "https://<trustguard-data-plane>",
   "api_key": "tgk_…",
@@ -45,8 +66,10 @@ Then write `~/.trustguard/claude-code.json`:
 }
 ```
 
-Create a **Claude Code** (or generic IDE) collector in TrustGuard and mint the
-key. Do not reuse the Anthropic Inference Hook collector secret (`whsec_…`).
+```bash
+export TRUSTGUARD_DATA_URL="https://…"
+export TRUSTGUARD_API_KEY="tgk_…"
+```
 
 ### Enterprise (MDM)
 
@@ -64,11 +87,8 @@ user config or env when the managed file is present.
 
 ### TrustGate MCP (optional)
 
-```bash
-export TRUSTGATE_MCP_URL="https://{host}/{consumer-slug}/mcp"
-export TRUSTGATE_MCP_API_KEY="…"   # leave empty for OAuth consumers
-# export TRUSTGATE_GATEWAY_SLUG="…"  # hybrid only
-```
+Prefer the enable-time plugin fields above. Equivalent env (if you wire MCP
+outside the plugin) is not required when `userConfig` is set.
 
 Not the TrustGuard `tgk_…` key.
 
