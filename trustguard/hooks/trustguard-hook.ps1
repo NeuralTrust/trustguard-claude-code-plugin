@@ -7,7 +7,7 @@
 
 param([switch]$InstallOnly)
 
-$Version = '0.1.0'
+$Version = '0.1.1'
 
 $Sha256 = @{
     'amd64' = ''

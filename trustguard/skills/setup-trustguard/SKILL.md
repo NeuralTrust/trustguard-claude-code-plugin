@@ -58,10 +58,33 @@ claude --plugin-dir ./trustguard
 
 ## 3. Configure the connection (BYO / non-MDM only)
 
-Only when step 1 found no managed key. Ask the user for the data-plane URL and
-the **org** Claude Code collector API key (`tgk_…`) from their security/platform
-team. Do NOT ask the user to paste the key into the chat — have them create
-the file themselves:
+Only when step 1 found no managed key.
+
+### Preferred: plugin enable prompt (`userConfig`)
+
+When the user enables **trustguard** (org Plugins marketplace or
+`/plugin install`), Claude Code should prompt for:
+
+1. **TrustGuard data URL** — data-plane base URL  
+2. **TrustGuard collector API key** — `tgk_…` (sensitive; keychain)  
+3. **Fail mode** — `open` / `closed`  
+4. **TrustGate MCP URL** — optional  
+5. **TrustGate MCP API key** — optional (not `tgk_…`)  
+6. **TrustGate gateway slug** — optional hybrid only  
+
+If they already installed without filling these, re-open plugin settings /
+re-enable the plugin, or set options via CLI:
+
+```bash
+claude plugin enable trustguard@neuraltrust \
+  --config trustguard_data_url=https://… \
+  --config trustguard_api_key=tgk_… \
+  --config trustgate_mcp_url=https://…/mcp
+```
+
+Do **not** ask them to paste secrets into the chat.
+
+### Fallback: config file
 
 ```json
 {
@@ -72,20 +95,6 @@ the file themselves:
 ```
 
 Path: `~/.trustguard/claude-code.json`, `chmod 600`.
-
-### Optional: TrustGate MCP Gateway
-
-If the org uses TrustGate MCP, set env vars before starting Claude Code (or in
-the shell profile):
-
-```bash
-export TRUSTGATE_MCP_URL="https://{host}/{consumer-slug}/mcp"
-export TRUSTGATE_MCP_API_KEY="…"   # omit when the consumer uses OAuth
-# export TRUSTGATE_GATEWAY_SLUG="…"  # hybrid / private data planes only
-```
-
-`TRUSTGATE_MCP_URL` is required for the MCP server entry in the plugin to connect.
-This is **not** the TrustGuard `tgk_…` collector key.
 
 ## 4. Verify
 
