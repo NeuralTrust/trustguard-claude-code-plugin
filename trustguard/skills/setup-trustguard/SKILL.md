@@ -1,19 +1,21 @@
 ---
 name: setup-trustguard
-description: Configure the TrustGuard collector API key and data URL for the Claude Code plugin hooks. Use when the user enables Trustguard, asks where to put the tgk_ key, or hooks allow without evaluating.
+description: Configure TrustGuard collector key (file/MDM) and TrustGate MCP URL (plugin options). Use when enabling Trustguard or hooks/MCP are not working.
 ---
 
-# Configure TrustGuard (collector key)
+# Configure TrustGuard + TrustGate
 
-The **collector API key is not in the Claude Plugins UI** (Skills / Connectors / Hooks tabs). Those tabs only show what the plugin ships. Hooks read credentials from a **local config file** (or env / MDM).
+Two different credentials, two places:
 
-TrustGate MCP appears under the plugin **Connectors** tab as **TrustGate**. Wire it with env vars (below) or paste a real `https://…/mcp` URL when Claude prompts to add the connector.
+| What | Where you enter it |
+| --- | --- |
+| TrustGuard collector `tgk_…` | File or Kandji — **not** the Plugins form |
+| TrustGate MCP URL (+ optional key) | **Plugins → Trustguard → Customize / Configure options** |
 
-## 1. Create the config file
+## 1. Collector key (hooks / firewall)
 
 ```bash
-mkdir -p ~/.trustguard
-chmod 700 ~/.trustguard
+mkdir -p ~/.trustguard && chmod 700 ~/.trustguard
 cat > ~/.trustguard/claude-code.json <<'EOF'
 {
   "data_url": "https://YOUR_TRUSTGUARD_DATA_PLANE",
@@ -24,63 +26,45 @@ EOF
 chmod 600 ~/.trustguard/claude-code.json
 ```
 
-| Field | Value |
-| --- | --- |
-| `data_url` | TrustGuard data-plane base URL (no `/v1/evaluate`) |
-| `api_key` | Collector key `tgk_…` from TrustGuard → Claude Code / IDE collector |
-| `fail_mode` | `open` (allow if TG down) or `closed` (deny) |
+Enterprise: Kandji script writes  
+`/Library/Application Support/TrustGuard/claude-code.json` (locked).
 
-Do **not** use Inference Hook secrets (`whsec_…`) or TrustGate MCP consumer keys here.
+Do **not** use `whsec_…` or the TrustGate MCP consumer key here.
 
-## 2. Install the hook binary (if needed)
+## 2. TrustGate MCP URL (Connectors)
+
+In Claude:
+
+1. **Plugins → Trustguard**
+2. Open **Customize** or the plugin menu → **Configure options**
+3. Fill:
+   - **TrustGate MCP URL** — `https://{host}/{consumer-slug}/mcp` from TrustGate Connect
+   - **TrustGate MCP API key** — optional consumer key (not `tgk_…`)
+   - **Gateway slug** — only hybrid / private DP
+
+That is how you **type the URL**. The Connectors tab then uses the saved value for the **TrustGate** server.
+
+CLI equivalent:
 
 ```bash
-trustguard-claude-code version || ls ~/.trustguard/bin/
+claude plugin enable trustguard@neuraltrust \
+  --config trustgate_mcp_url=https://host/slug/mcp \
+  --config trustgate_mcp_api_key=YOUR_CONSUMER_KEY
 ```
 
-From a clone of the plugin repo: `make install-local`.  
-Or wait for the bootstrap script to download a release binary into `~/.trustguard/bin`.
+If **Add connector** shows a literal `${user_config…}` string, cancel that dialog and use **Configure options** instead — that form is the real URL field.
 
-## 3. Verify
+## 3. Binary (if needed)
+
+```bash
+trustguard-claude-code version \
+  || ls "/Library/Application Support/TrustGuard/bin/" \
+  || ls ~/.trustguard/bin/
+```
+
+## 4. Verify hooks
 
 ```bash
 echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"session_id":"t1"}' \
   | trustguard-claude-code hook
 ```
-
-- Missing key → stderr `TRUSTGUARD_API_KEY missing` and `{}` (allow).
-- With key → empty allow or `permissionDecision: "deny"` if blocked.
-
-In Claude: Plugins → Trustguard → **Hooks** should list Prompt submit / Pre-tool use / Post-tool use.
-
-## Enterprise (MDM)
-
-IT drops the same JSON (with org `api_key`) at:
-
-- macOS: `/Library/Application Support/TrustGuard/claude-code.json`
-- Linux: `/etc/trustguard/claude-code.json`
-- Windows: `%ProgramData%\TrustGuard\claude-code.json`
-
-Then developers cannot override key / data URL / fail mode.
-
-## TrustGate MCP Gateway (optional)
-
-**Plugins → Trustguard → Connectors → TrustGate**, or set env before starting Claude:
-
-```bash
-export TRUSTGATE_MCP_URL="https://{host}/{consumer-slug}/mcp"
-export TRUSTGATE_MCP_API_KEY="…"   # consumer key; omit for OAuth
-# export TRUSTGATE_GATEWAY_SLUG="…"  # hybrid only
-```
-
-If the UI shows a literal `${TRUSTGATE_MCP_URL}`, paste the real HTTPS URL from TrustGate **Connect** instead. Never put the TrustGuard `tgk_…` collector key there.
-
-## Env alternatives
-
-```bash
-export TRUSTGUARD_DATA_URL="https://…"
-export TRUSTGUARD_API_KEY="tgk_…"
-export TRUSTGUARD_FAIL_MODE="closed"
-```
-
-Priority: MDM file → `~/.trustguard/claude-code.json` → env.
