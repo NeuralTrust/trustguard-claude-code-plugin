@@ -70,26 +70,28 @@ make install-local
 claude --plugin-dir ./trustguard
 ```
 
-## TrustGate MCP (optional) — add a custom connector (editable URL)
+## TrustGate MCP (bundled) — set the URL in plugin options
 
-**Do not** use **Plugins → Trustguard → Connectors**. Desktop locks the URL
-when the connector is defined by a plugin `mcpServers` entry, so per-org MCP
-URLs cannot be typed there. This plugin does **not** ship `mcpServers`.
+The plugin ships a **TrustGate** MCP server whose URL comes from the plugin
+option `trustgate_mcp_url`. Claude Code substitutes it when the session starts.
 
-Add TrustGate as a normal custom connector:
-
-1. **Customize → Connectors** (or Settings → Connectors) → **Add custom connector**
-2. Name: `TrustGate`
-3. URL: paste `https://{host}/{consumer-slug}/mcp` from TrustGate Connect  
-   (field is fully editable)
-4. Optional consumer API key — **not** TrustGuard `tgk_…`
-
-CLI:
+Set it (pick one):
 
 ```bash
-claude mcp add --transport http TrustGate "https://host/slug/mcp" \
-  --header "X-AG-API-Key: YOUR_CONSUMER_KEY"
+# Terminal — most reliable
+claude plugin enable trustguard@neuraltrust \
+  --config trustgate_mcp_url=https://HOST/CONSUMER-SLUG/mcp \
+  --config trustgate_mcp_api_key=YOUR_CONSUMER_KEY
 ```
+
+- Claude Code TUI: `/plugin` → Installed → **trustguard** → **Configure options** → fill URL → `/reload-plugins`
+- Desktop: **Plugins → Trustguard → Customize** (same options form)
+
+**Ignore the “Add custom connector” dialog** — it shows the raw placeholder and
+locks the URL for plugin-provided servers. It is not the config surface.
+
+Verify with `/mcp` in a session: TrustGate should connect once the URL is set.  
+MCP key = TrustGate **consumer** key, never the TrustGuard `tgk_…`.
 
 ## Event → evaluation mapping
 

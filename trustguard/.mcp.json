@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "TrustGate": {
+      "type": "http",
+      "url": "${user_config.trustgate_mcp_url}",
+      "headers": {
+        "X-AG-API-Key": "${user_config.trustgate_mcp_api_key}",
+        "X-AG-Gateway-Slug": "${user_config.trustgate_gateway_slug}"
+      }
+    }
+  }
+}
