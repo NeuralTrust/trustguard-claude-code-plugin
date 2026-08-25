@@ -1,47 +1,61 @@
 ---
 name: setup-trustguard
-description: Configure TrustGuard collector and TrustGate MCP for org managed rollout or local dogfood. Use when enabledPlugins/pluginConfigs are missing, Add custom connector shows ${user_config…}, or hooks lack tgk_.
+description: Configure TrustGuard collector hooks and point TrustGate MCP to org Connectors. Use when TrustGate shows as plugin-provided, managed settings lack enabledPlugins, or hooks lack tgk_.
 ---
 
-# TrustGuard + TrustGate (org managed first)
+# TrustGuard hooks + TrustGate org MCP
 
-## Org path (preferred)
+## Separation (do not mix)
 
 | Layer | Where |
 | --- | --- |
-| Plugin + MCP URL | Claude managed settings — see repo `mdm/claude/managed-settings.json` |
-| Collector `tgk_…` + binary | Kandji — `mdm/kandji/` |
+| **TrustGate MCP (all products)** | claude.ai **Organization → Connectors** (always on for the org) |
+| **Plugin (Code hooks only)** | Claude managed settings — `enabledPlugins` only |
+| **Collector `tgk_…` + binary** | Kandji — `mdm/kandji/` |
 
-Managed settings must include:
+This plugin does **not** ship MCP. If Connectors shows TrustGate as
+“Provided by the Trustguard plugin”, the plugin is outdated — update the
+marketplace / reinstall, and use the **org** connector instead.
+
+## Org managed settings (hooks)
 
 ```json
 {
   "enabledPlugins": { "trustguard@neuraltrust": true },
-  "pluginConfigs": {
-    "trustguard@neuraltrust": {
-      "options": { "trustgate_mcp_url": "https://HOST/SLUG/mcp" }
+  "extraKnownMarketplaces": {
+    "neuraltrust": {
+      "source": {
+        "source": "github",
+        "repo": "NeuralTrust/trustguard-claude-code-plugin"
+      },
+      "autoUpdate": true
     }
   }
 }
 ```
 
-Path on macOS: `/Library/Application Support/ClaudeCode/managed-settings.json`.
+No `pluginConfigs`. No MCP URL here.
 
-**Wrong surface:** “Add custom connector” with locked `${user_config.trustgate_mcp_url}` —
-cancel it. The plugin already owns TrustGate.
+Path on macOS (file path only if MDM deploys it):  
+`/Library/Application Support/ClaudeCode/managed-settings.json`.  
+Server-managed settings do not create that file.
 
-Collector key is **never** in the Plugins UI:
+## TrustGate MCP
+
+Owner: **Organization settings → Connectors → Add → Custom → Web**  
+URL: `https://HOST/CONSUMER-SLUG/mcp`  
+Users: Connect (OAuth) once per account.
+
+## Collector (never in Plugins / Connectors UI)
 
 ```bash
-# MDM path (locked)
 cat "/Library/Application Support/TrustGuard/claude-code.json"
 ```
 
-## Local dogfood only
+## Local dogfood
 
 ```bash
-claude plugin install trustguard@neuraltrust \
-  --config trustgate_mcp_url=https://HOST/CONSUMER-SLUG/mcp
+claude plugin install trustguard@neuraltrust
 
 mkdir -p ~/.trustguard && cat > ~/.trustguard/claude-code.json <<'EOF'
 {
@@ -53,9 +67,12 @@ EOF
 chmod 600 ~/.trustguard/claude-code.json
 ```
 
+Add TrustGate under Connectors (user or org), not via plugin config.
+
 ## Verify
 
-- `/status` → Enterprise managed settings (org)
+- Org Connectors → TrustGate connected on claude.ai / Desktop / Code
+- `/status` → Enterprise managed settings
 - `claude plugin list` → `trustguard@neuraltrust`
-- `/mcp` → TrustGate OAuth once
+- `/mcp` → TrustGate as **org** connector (not plugin-provided)
 - Hook probe → TrustGuard `source.application=claude-code-plugin`

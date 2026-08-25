@@ -1,28 +1,20 @@
 # Claude Code managed settings — TrustGuard plugin
 
-Deploys the **Claude Code plugin** (hooks) to every Code session. Pair with:
-
-1. **Org Connectors** for TrustGate MCP on **claude.ai / Desktop / Cowork**  
-   (see [docs/enterprise.md](../../docs/enterprise.md) §1) — that is the
-   primary MCP path for “Claude”, not only Code.
-2. **Kandji** (`../kandji/`) for collector `tgk_…` + hook binary.
+Enables the **Claude Code plugin** (lifecycle hooks only). TrustGate MCP is
+**not** configured here.
 
 | Layer | Delivers | Mechanism |
 | --- | --- | --- |
-| Org Connectors | TrustGate MCP for Claude products | claude.ai Owner → Connectors |
-| This file | Plugin enable (+ optional MCP bind for Code) | Claude Code managed settings |
-| Kandji | `tgk_…` + binary | TrustGuard support dir |
+| **Org Connectors** | TrustGate MCP for **all** Claude products | claude.ai Owner → Connectors (always on for the org) |
+| **This file** | Plugin enable (hooks) | Claude Code managed settings |
+| **Kandji** | `tgk_…` + binary | TrustGuard support dir |
 
-## 1. Fill the template
+See [docs/enterprise.md](../../docs/enterprise.md).
 
-Edit [`managed-settings.json`](./managed-settings.json):
+## 1. Template
 
-1. Keep `enabledPlugins` / `extraKnownMarketplaces` unless names differ.
-2. **`pluginConfigs.trustgate_mcp_url`**:
-   - **Set it** if Claude Code should get TrustGate from the plugin (same URL
-     as the org Connector).
-   - **Omit `pluginConfigs` entirely** if Code already loads the org TrustGate
-     connector from claude.ai and you only need hooks from this plugin.
+[`managed-settings.json`](./managed-settings.json) — marketplace + `enabledPlugins`
+only. **No** `pluginConfigs`, **no** MCP URL.
 
 Optional hardening:
 
@@ -36,7 +28,7 @@ Optional hardening:
 }
 ```
 
-## 2. Deliver the file (or server-managed)
+## 2. Deliver
 
 | OS | Path |
 | --- | --- |
@@ -44,11 +36,11 @@ Optional hardening:
 | Linux / WSL | `/etc/claude-code/managed-settings.json` |
 | Windows | `C:\Program Files\ClaudeCode\managed-settings.json` |
 
-**Preferred for org policy:** same JSON keys in claude.ai **server-managed
-settings** (no file on disk). If both remote and file exist, **remote wins**.
+**Preferred:** same JSON keys in claude.ai **server-managed settings** (no file
+on disk). If both remote and file exist, **remote wins**.
 
-**Kandji:** `TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1` + optional
-`TRUSTGATE_MCP_URL` on the install script.
+**Kandji:** `TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1` writes this file
+(plugin enable only; MCP stays on Org Connectors).
 
 ## 3. Keys
 
@@ -56,16 +48,13 @@ settings** (no file on disk). If both remote and file exist, **remote wins**.
 | --- | --- |
 | `extraKnownMarketplaces.neuraltrust` | Registers this GitHub marketplace |
 | `enabledPlugins["trustguard@neuraltrust"]` | Force plugin on (hooks) |
-| `pluginConfigs…options.trustgate_mcp_url` | Optional: bind TrustGate inside the plugin for Code |
 
-`pluginConfigs` values must nest under **`options`**.
-
-## 4. Verify Claude Code
+## 4. Verify
 
 ```bash
 # /status → Enterprise managed settings (remote|file)
 claude plugin list   # trustguard@neuraltrust enabled
-# /mcp → TrustGate (from plugin and/or claude.ai connector) + OAuth
+# /mcp → TrustGate from **org Connectors**, not "Provided by the Trustguard plugin"
 ```
 
 Hooks still need Kandji collector + binary.
