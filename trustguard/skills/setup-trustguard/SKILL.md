@@ -1,6 +1,6 @@
 ---
 name: setup-trustguard
-description: Configure the TrustGuard collector key and the TrustGate MCP URL for this plugin. Use when the user enables Trustguard, asks where to enter the MCP URL or tgk_ key, or the TrustGate connector shows an unresolved placeholder.
+description: Configure the TrustGuard collector key and the TrustGate MCP URL for this plugin. Use when the user enables Trustguard, asks where to enter the MCP URL or tgk_ key, or /mcp shows TrustGate as "not configured".
 ---
 
 # Configure TrustGuard + TrustGate
@@ -10,7 +10,7 @@ Two credentials, two places. Neither goes in the **Add custom connector** dialog
 | What | Where |
 | --- | --- |
 | TrustGuard collector `tgk_…` (hooks) | `~/.trustguard/claude-code.json` or Kandji MDM |
-| TrustGate MCP URL + optional key | **Plugin options** (`userConfig`) — see below |
+| TrustGate MCP URL + optional key | `env` block in `~/.claude/settings.json` |
 
 ## 1. Collector key (hooks / firewall)
 
@@ -28,35 +28,38 @@ chmod 600 ~/.trustguard/claude-code.json
 
 Enterprise: Kandji writes `/Library/Application Support/TrustGuard/claude-code.json` (locked).
 
-## 2. TrustGate MCP URL — plugin options
+## 2. TrustGate MCP — environment variables
 
-The TrustGate connector reads `${user_config.trustgate_mcp_url}`. Claude Code
-substitutes it at session start once the option is set. Set it one of these ways:
+The bundled TrustGate connector reads `${TRUSTGATE_MCP_URL:-}`. Until the
+variable is set it shows as `not configured` in `/mcp` — that is expected, not
+an error. Set the variables in the `env` block of `~/.claude/settings.json`:
 
-### Claude Code (terminal) — most reliable
-
-```bash
-claude plugin enable trustguard@neuraltrust \
-  --config trustgate_mcp_url=https://HOST/CONSUMER-SLUG/mcp \
-  --config trustgate_mcp_api_key=YOUR_CONSUMER_KEY
+```json
+{
+  "env": {
+    "TRUSTGATE_MCP_URL": "https://HOST/CONSUMER-SLUG/mcp",
+    "TRUSTGATE_MCP_API_KEY": "YOUR_CONSUMER_KEY"
+  }
+}
 ```
 
-Or interactively: run `/plugin`, open **Installed → trustguard → Configure options**,
-fill **TrustGate MCP URL**, save, then `/reload-plugins` (or restart the session).
+Merge into the existing file if it already has other keys. Optional:
+`TRUSTGATE_GATEWAY_SLUG` for hybrid / private data planes.
 
-### Desktop app
+Restart the session (or `/reload-plugins`), then check `/mcp`: **TrustGate**
+should show `connected` and list its tools.
 
-**Plugins → Trustguard → Customize** opens the same options form when available.
+Alternatives: export the same variables in your shell profile, or push them
+org-wide through managed settings (Kandji/MDM) — same `env` block, in
+`/Library/Application Support/ClaudeCode/managed-settings.json` on macOS.
 
-### Do NOT use "Add custom connector"
-
-That dialog shows the raw `${user_config…}` placeholder, locks the URL field for
-plugin-provided servers, and is not how plugin MCP servers are configured. Close
-it and use Configure options instead.
+Do **not** use `${user_config…}` values or the "Add custom connector" dialog
+for this server; plugin `userConfig` substitution in MCP configs fails
+silently (known Claude Code issue) and the dialog locks plugin URLs.
 
 ## 3. Verify
 
-- `/mcp` in a session → **TrustGate** should list tools (after the URL is set).
+- `/mcp` → **TrustGate** `connected` (after env vars set + session restart).
 - Hooks:
 
 ```bash
@@ -65,4 +68,4 @@ echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command"
 ```
 
 Key mix-ups to avoid: `tgk_…` = TrustGuard collector (file/MDM only);
-consumer key = TrustGate MCP (`trustgate_mcp_api_key`); `whsec_…` = never here.
+consumer key = TrustGate MCP (`TRUSTGATE_MCP_API_KEY`); `whsec_…` = never here.

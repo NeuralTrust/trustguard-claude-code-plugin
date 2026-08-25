@@ -70,27 +70,36 @@ make install-local
 claude --plugin-dir ./trustguard
 ```
 
-## TrustGate MCP (bundled) — set the URL in plugin options
+## TrustGate MCP (bundled) — set the URL via environment variables
 
-The plugin ships a **TrustGate** MCP server whose URL comes from the plugin
-option `trustgate_mcp_url`. Claude Code substitutes it when the session starts.
+The plugin ships a **TrustGate** MCP server that reads its endpoint from
+environment variables (`${TRUSTGATE_MCP_URL:-}`). Until the variable is set,
+`/mcp` shows the server as `not configured` — expected, not an error.
 
-Set it (pick one):
+Add the variables to the `env` block of `~/.claude/settings.json`:
 
-```bash
-# Terminal — most reliable
-claude plugin enable trustguard@neuraltrust \
-  --config trustgate_mcp_url=https://HOST/CONSUMER-SLUG/mcp \
-  --config trustgate_mcp_api_key=YOUR_CONSUMER_KEY
+```json
+{
+  "env": {
+    "TRUSTGATE_MCP_URL": "https://HOST/CONSUMER-SLUG/mcp",
+    "TRUSTGATE_MCP_API_KEY": "YOUR_CONSUMER_KEY"
+  }
+}
 ```
 
-- Claude Code TUI: `/plugin` → Installed → **trustguard** → **Configure options** → fill URL → `/reload-plugins`
-- Desktop: **Plugins → Trustguard → Customize** (same options form)
+Optional: `TRUSTGATE_GATEWAY_SLUG` (hybrid / private data planes). You can also
+export the same variables in your shell profile, or push them org-wide via
+managed settings (MDM).
 
-**Ignore the “Add custom connector” dialog** — it shows the raw placeholder and
-locks the URL for plugin-provided servers. It is not the config surface.
+Restart the session (or `/reload-plugins`), then verify with `/mcp`:
+**TrustGate** should show `connected`.
 
-Verify with `/mcp` in a session: TrustGate should connect once the URL is set.  
+Why env vars and not plugin options: `${user_config.*}` substitution inside
+plugin `mcpServers` configs fails silently in current Claude Code
+([anthropics/claude-code#51573](https://github.com/anthropics/claude-code/issues/51573)),
+and the Desktop "Add custom connector" dialog locks plugin-provided URLs.
+Environment expansion `${VAR:-default}` is the officially supported path.
+
 MCP key = TrustGate **consumer** key, never the TrustGuard `tgk_…`.
 
 ## Event → evaluation mapping
