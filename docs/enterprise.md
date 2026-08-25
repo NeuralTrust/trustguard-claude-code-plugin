@@ -1,10 +1,19 @@
 # Enterprise deployment notes
 
+## Kandji (macOS) — recommended
+
+Use the ready-made Custom Script:
+
+- **[mdm/kandji/README.md](../mdm/kandji/README.md)** — Library Item steps  
+- **`mdm/kandji/install-trustguard-claude-code.sh`** — install binary + managed key  
+- **`mdm/kandji/audit-trustguard-claude-code.sh`** — optional Audit companion  
+
+That path is the supported org rollout for collector `tgk_…` + binary.
+
 ## Managed config
 
-Ship a JSON file with the org Claude Code collector key. When `api_key` is set
-in this file, the binary locks `api_key`, `data_url`, and `fail_mode` against
-user and env overrides.
+When `api_key` is set in the system file, the binary locks `api_key`,
+`data_url`, and `fail_mode` against user file and env overrides.
 
 | OS | Path |
 |---|---|
@@ -16,8 +25,7 @@ user and env overrides.
 {
   "data_url": "https://data.example.neuraltrust.ai",
   "api_key": "tgk_…",
-  "fail_mode": "closed",
-  "consumer_id": "claude-code:corp-sso-hint"
+  "fail_mode": "closed"
 }
 ```
 
@@ -26,23 +34,26 @@ still live in `~/.trustguard/claude-code.json`.
 
 ## Binary
 
-Deploy `trustguard-claude-code` to PATH or `~/.trustguard/bin`. The plugin
-bootstrap prefers PATH, then `~/.trustguard/bin/trustguard-claude-code`, then
-the pinned release download (SHA-256 verified).
+| Preference order (bootstrap) | Location |
+|---|---|
+| 1 | `trustguard-claude-code` on `PATH` |
+| 2 | `~/.trustguard/bin/trustguard-claude-code` (local) |
+| 3 | Versioned download under `~/.trustguard/bin` |
+| MDM | `/Library/Application Support/TrustGuard/bin/trustguard-claude-code` + PATH symlink |
 
 ## Plugin distribution
 
-- Private marketplace: host this repo (or a fork) and
-  `/plugin marketplace add <org>/<repo>`.
-- Or pin `claude --plugin-dir` / managed settings to a synced checkout.
+Kandji does **not** enable the Claude plugin. Separately:
+
+- Org marketplace + enable **trustguard**, or  
+- `claude --plugin-dir` for dogfood  
 
 ## Collector key is not in the Claude Plugins UI
 
-Org **Plugins → Trustguard** shows Skills / Connectors / Hooks only. There is
-no field for `tgk_…`. Ship the managed JSON above (or have each laptop write
-`~/.trustguard/claude-code.json`).
+Org **Plugins → Trustguard** shows Skills / Connectors / Hooks only. Credentials
+come from the managed JSON (Kandji) or `~/.trustguard/claude-code.json` (BYO).
 
-TrustGate MCP: team **Connectors** with a real HTTPS MCP URL — not the
+TrustGate MCP: Claude **Connectors** with a real HTTPS MCP URL — not the
 collector key file.
 
 ## Inference Hooks vs this plugin

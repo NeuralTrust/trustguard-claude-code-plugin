@@ -51,6 +51,8 @@ export TRUSTGUARD_FAIL_MODE="closed"
 | Linux | `/etc/trustguard/claude-code.json` |
 | Windows | `%ProgramData%\TrustGuard\claude-code.json` |
 
+**Kandji (macOS):** Custom Script — [`mdm/kandji/README.md`](./mdm/kandji/README.md).
+
 ## Install (org Plugins)
 
 1. Org admin adds marketplace `NeuralTrust/trustguard-claude-code-plugin` and

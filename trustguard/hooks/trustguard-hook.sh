@@ -42,6 +42,12 @@ case "$(uname -s)" in
     *) OS="" ;;
 esac
 
+# MDM (Kandji) install path — managed binary, all users.
+MDM_BIN="/Library/Application Support/TrustGuard/bin/trustguard-claude-code$EXT"
+if [ -x "$MDM_BIN" ]; then
+    exec "$MDM_BIN" hook
+fi
+
 # Local install (make install-local) drops an unversioned binary here.
 LOCAL_BIN="$BIN_DIR/trustguard-claude-code$EXT"
 if [ -x "$LOCAL_BIN" ]; then
