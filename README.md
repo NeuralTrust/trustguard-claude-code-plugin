@@ -13,20 +13,30 @@ local hooks call `trustguard-claude-code` → TrustGuard `POST /v1/evaluate`.
 
 ## Org-wide install (managed) — primary path
 
-Two layers. Details and checklist: **[docs/enterprise.md](./docs/enterprise.md)**.
+**TrustGate MCP is for Claude broadly** (claude.ai, Desktop, Cowork), not only
+Claude Code. The plugin adds **hooks** (and an optional MCP bind) for Code.
+Full detail: **[docs/enterprise.md](./docs/enterprise.md)**.
 
-| Layer | Delivers | Artifact |
+| Piece | Surfaces | How |
 | --- | --- | --- |
-| **Claude managed settings** | Marketplace, force-enable plugin, TrustGate MCP URL | [`mdm/claude/managed-settings.json`](./mdm/claude/managed-settings.json) |
-| **Kandji / MDM** | Collector `tgk_…` + hook binary | [`mdm/kandji/`](./mdm/kandji/) |
+| **TrustGate MCP** | claude.ai, Desktop, Cowork, Code | Owner → **Organization settings → Connectors** (remote MCP URL + OAuth) |
+| **Plugin** | Claude Code only | Managed settings: enable `trustguard@neuraltrust` |
+| **Collector + binary** | Claude Code hooks only | Kandji [`mdm/kandji/`](./mdm/kandji/) |
 
-### 1. Claude managed settings
+### 1. TrustGate for the Claude org (all products)
 
-Place on every Mac (or push the same keys via claude.ai server-managed settings):
+Owner:
 
-```
-/Library/Application Support/ClaudeCode/managed-settings.json
-```
+1. **Organization settings → Connectors → Add → Custom → Web**
+2. URL = TrustGate Connect MCP endpoint `https://HOST/CONSUMER-SLUG/mcp`
+3. Members: **Customize → Connectors → Connect** (OAuth once)
+
+Same URL everywhere. No `tgk_…` on the connector.
+
+### 2. Claude Code plugin (hooks)
+
+Server-managed or file
+`/Library/Application Support/ClaudeCode/managed-settings.json`:
 
 ```json
 {
@@ -41,42 +51,29 @@ Place on every Mac (or push the same keys via claude.ai server-managed settings)
   },
   "enabledPlugins": {
     "trustguard@neuraltrust": true
-  },
-  "pluginConfigs": {
-    "trustguard@neuraltrust": {
-      "options": {
-        "trustgate_mcp_url": "https://HOST/CONSUMER-SLUG/mcp"
-      }
-    }
   }
 }
 ```
 
-- `pluginConfigs` values must sit under **`options`**.
-- MCP auth is **OAuth** (URL only). Users complete OAuth once in `/mcp`.
-- **Never** use “Add custom connector” for TrustGate.
+Optional: add `pluginConfigs…options.trustgate_mcp_url` with the **same** URL
+if Code should bind TrustGate via the plugin instead of (or in addition to)
+the org Connector — avoid double-registering the same endpoint. Template:
+[`mdm/claude/managed-settings.json`](./mdm/claude/managed-settings.json).
 
-Kandji can write this file: set `TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1` and
-`TRUSTGATE_MCP_URL=…` on the install script. See [`mdm/claude/README.md`](./mdm/claude/README.md).
-
-### 2. Collector key + binary (Kandji)
+### 3. Collector key + binary (Kandji)
 
 ```bash
-# See mdm/kandji/README.md — Custom Script installs:
+# mdm/kandji/README.md — installs:
 #   /Library/Application Support/TrustGuard/claude-code.json   (tgk_… locked)
 #   /Library/Application Support/TrustGuard/bin/trustguard-claude-code
 ```
 
-Create a **Claude Code / IDE** collector in TrustGuard (`tgk_…`). Do not reuse
-Inference Hook secrets (`whsec_…`).
+Create a **Claude Code / IDE** collector (`tgk_…`). Not Inference Hook `whsec_…`.
 
-### 3. Verify (pilot)
+### 4. Verify (pilot)
 
-```text
-/status          → Enterprise managed settings (file|remote|…)
-claude plugin list → trustguard@neuraltrust enabled
-/mcp             → TrustGate → OAuth → tools
-```
+- claude.ai / Desktop: Connectors → TrustGate connected + tools  
+- Claude Code: `/status` managed; `claude plugin list` → trustguard; hooks fire  
 
 ```bash
 echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"},"session_id":"pilot"}' \
@@ -88,8 +85,8 @@ echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command"
 
 | Secret | Where |
 | --- | --- |
-| TrustGuard collector `tgk_…` | Kandji / `~/.trustguard/claude-code.json` / env — **not** Plugins UI |
-| TrustGate MCP URL | `pluginConfigs` in managed settings (or prompt on interactive install) |
+| TrustGate MCP URL | Org **Connectors** (Claude products); optional plugin `pluginConfigs` for Code |
+| TrustGuard collector `tgk_…` | Kandji / `~/.trustguard/claude-code.json` — **not** Connectors / Plugins UI |
 
 ## Dogfood / single machine (not org)
 

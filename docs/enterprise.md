@@ -1,31 +1,75 @@
 # Enterprise deployment — org-wide (managed)
 
-Two layers. Both are required for a full org rollout.
+Three pieces. TrustGate MCP is **org-wide for Claude** (claude.ai, Desktop,
+Cowork). The plugin only wires that same gateway into **Claude Code**, plus
+local firewall hooks.
 
-| Layer | What | How |
+| Piece | Surfaces | How |
 | --- | --- | --- |
-| **A. Claude managed settings** | Marketplace + force-enable plugin + TrustGate MCP URL | [`mdm/claude/managed-settings.json`](../mdm/claude/managed-settings.json) |
-| **B. TrustGuard MDM** | Collector `tgk_…` + hook binary | [`mdm/kandji/`](../mdm/kandji/) |
+| **1. TrustGate MCP Gateway** | claude.ai, Desktop, Cowork, Claude Code* | Org **Connectors** (Owner) + per-user OAuth |
+| **2. Claude Code plugin** | Claude Code only (hooks + optional MCP bind) | Server-managed / file managed settings |
+| **3. TrustGuard collector + binary** | Claude Code hooks only | Kandji MDM |
+
+\*Claude Code can use TrustGate either as a **claude.ai connector** that Code
+also loads, or via the plugin’s `userConfig` MCP entry. Prefer **one** path so
+you do not register the same URL twice.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Claude Code managed-settings.json (every Mac / server)     │
-│  · extraKnownMarketplaces.neuraltrust                       │
-│  · enabledPlugins["trustguard@neuraltrust"] = true          │
-│  · pluginConfigs…options.trustgate_mcp_url                  │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ loads plugin hooks + TrustGate MCP
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  TrustGuard managed config + binary (Kandji)                │
-│  · /Library/Application Support/TrustGuard/claude-code.json │
-│  · …/bin/trustguard-claude-code                             │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ 1. claude.ai Organization settings → Connectors                  │
+│    TrustGate remote MCP URL (same URL for everyone)              │
+│    → claude.ai · Desktop · Cowork · (optional) Claude Code       │
+└───────────────────────────────┬──────────────────────────────────┘
+                                │ same TrustGate endpoint
+┌───────────────────────────────▼──────────────────────────────────┐
+│ 2. Claude Code managed settings (plugin)                         │
+│    · marketplace + enabledPlugins trustguard@neuraltrust         │
+│    · pluginConfigs…trustgate_mcp_url  OR  rely on claude.ai MCP  │
+│    · lifecycle hooks → TrustGuard evaluate                       │
+└───────────────────────────────┬──────────────────────────────────┘
+                                │ needs tgk_ + binary on the Mac
+┌───────────────────────────────▼──────────────────────────────────┐
+│ 3. Kandji                                                        │
+│    · /Library/…/TrustGuard/claude-code.json (tgk_…)              │
+│    · …/bin/trustguard-claude-code                                │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-## A — Claude managed settings (plugin + MCP)
+## 1 — TrustGate MCP for the whole Claude org
 
-Canonical template and ops notes: **[mdm/claude/README.md](../mdm/claude/README.md)**.
+This is **not** limited to Claude Code. Owners add a **custom remote MCP**
+connector once; members connect with OAuth.
+
+Doc: [Custom connectors (remote MCP)](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
+
+1. Owner → **Organization settings → Connectors → Add → Custom → Web**
+2. Name: `TrustGate` (or your brand)
+3. URL: `https://HOST/CONSUMER-SLUG/mcp` from TrustGate Connect
+4. Advanced OAuth Client ID/Secret only if TrustGate requires a fixed client
+5. Save
+
+Each user (claude.ai / Desktop / Cowork):
+
+1. **Customize → Connectors** → TrustGate → **Connect** (OAuth once)
+
+Notes:
+
+- The connector is reached from **Anthropic’s cloud**, not the laptop. The MCP
+  URL must be reachable from the public internet (or allowlisted Anthropic
+  egress). Private-only MCP needs TrustGate’s private/network options.
+- Team/Enterprise: Owner must add the connector before members can use it.
+- Optional: Enterprise-managed auth via IdP so users inherit access on login
+  (when your Claude plan supports it).
+
+**Do not** put the TrustGuard collector `tgk_…` on this connector.
+
+## 2 — Claude Code plugin (hooks + optional MCP bind)
+
+Canonical template: **[mdm/claude/managed-settings.json](../mdm/claude/managed-settings.json)**  
+Ops: **[mdm/claude/README.md](../mdm/claude/README.md)**.
+
+Minimum for **hooks only** (if TrustGate already comes from org Connectors and
+Claude Code loads claude.ai MCPs):
 
 ```json
 {
@@ -40,7 +84,15 @@ Canonical template and ops notes: **[mdm/claude/README.md](../mdm/claude/README.
   },
   "enabledPlugins": {
     "trustguard@neuraltrust": true
-  },
+  }
+}
+```
+
+If Claude Code should bind TrustGate **via the plugin** (isolated from
+claude.ai connectors, or connectors not loaded in that session), also set:
+
+```json
+{
   "pluginConfigs": {
     "trustguard@neuraltrust": {
       "options": {
@@ -51,52 +103,25 @@ Canonical template and ops notes: **[mdm/claude/README.md](../mdm/claude/README.
 }
 ```
 
-| Key | Role |
-| --- | --- |
-| `extraKnownMarketplaces` | Registers the GitHub marketplace for every user |
-| `enabledPlugins` | Force **trustguard@neuraltrust** on (users cannot turn it off) |
-| `pluginConfigs.*.options` | Pre-set `userConfig` MCP URL — nested under **`options`** |
+Use the **same** URL as the org Connector. Avoid enabling both the plugin MCP
+and a duplicate custom connector with the same endpoint in the same session
+(duplicate MCP tools).
 
-**Paths (file-based):**
+Deliver managed settings via:
 
-| OS | Path |
-| --- | --- |
-| macOS | `/Library/Application Support/ClaudeCode/managed-settings.json` |
-| Linux / WSL | `/etc/claude-code/managed-settings.json` |
-| Windows | `C:\Program Files\ClaudeCode\managed-settings.json` |
+- claude.ai **server-managed settings** (recommended for org policy), or
+- file: `/Library/Application Support/ClaudeCode/managed-settings.json` (macOS)
 
-Also valid: claude.ai **server-managed settings** (same keys) or macOS
-profile domain `com.anthropic.claudecode`. Prefer **one** managed source;
-remote beats file when both exist.
+**Do not** use “Add custom connector” *inside* the plugin UI for the
+`${user_config…}` placeholder — that is the wrong surface for plugin options.
 
-**Do not** use “Add custom connector” for TrustGate. That UI is unrelated to
-plugin `userConfig` and shows a locked `${user_config…}` placeholder.
+## 3 — TrustGuard collector + binary (Kandji)
 
-Auth to TrustGate is **OAuth** (URL only). Each user completes OAuth once from
-`/mcp` the first time; the URL itself is org-managed.
-
-### Kandji can write this file
-
-On the install script:
-
-```bash
-TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1
-TRUSTGATE_MCP_URL=https://HOST/CONSUMER-SLUG/mcp
-```
-
-## B — TrustGuard collector + binary (Kandji)
+Only needed for **Claude Code lifecycle hooks** (firewall). Not used by
+claude.ai chat connectors.
 
 - **[mdm/kandji/README.md](../mdm/kandji/README.md)**
-- `install-trustguard-claude-code.sh` / `audit-trustguard-claude-code.sh`
-
-When `api_key` is set in the system file, the binary locks `api_key`,
-`data_url`, and `fail_mode` against user file and env overrides.
-
-| OS | Managed config |
-|---|---|
-| macOS | `/Library/Application Support/TrustGuard/claude-code.json` |
-| Linux | `/etc/trustguard/claude-code.json` |
-| Windows | `%ProgramData%\TrustGuard\claude-code.json` |
+- Installs `tgk_…` + `trustguard-claude-code`
 
 ```json
 {
@@ -106,26 +131,23 @@ When `api_key` is set in the system file, the binary locks `api_key`,
 }
 ```
 
-Bootstrap prefers the MDM binary over any developer `PATH` copy.
-
 ## Org checklist
 
-- [ ] Merge this repo to the GitHub default branch the marketplace clones
-- [ ] Publish GitHub **release** `vX.Y.Z` with multi-arch binaries; pin SHA-256
-      in bootstrap scripts for production
-- [ ] TrustGuard: Claude Code / IDE collector → `tgk_…` + data-plane URL
-- [ ] TrustGate Connect: org MCP URL (`https://…/…/mcp`)
-- [ ] Fill `mdm/claude/managed-settings.json` (or Kandji env vars above)
-- [ ] Kandji Blueprint: install script with `tgk_…` (+ optional Claude deploy)
-- [ ] Pilot Mac: `/status` shows Enterprise managed settings; `claude plugin list`
-      shows `trustguard@neuraltrust`; `/mcp` OAuth; hook probe; TrustGuard
-      `source.application=claude-code-plugin`
-- [ ] Expand Blueprint
+- [ ] TrustGate Connect: public (or allowlisted) MCP URL
+- [ ] claude.ai Owner: org **Connectors** → TrustGate custom remote MCP
+- [ ] Pilot users: Connect OAuth on claude.ai / Desktop
+- [ ] Merge plugin to marketplace default branch + GitHub release (binaries)
+- [ ] Claude Code managed settings: enable `trustguard@neuraltrust` (+ MCP URL if needed)
+- [ ] Kandji: collector + binary on Macs that run Claude Code
+- [ ] Pilot Claude Code: `/status`, hooks → TrustGuard `source.application=claude-code-plugin`
+- [ ] Expand Blueprints / org
 
-## Inference Hooks vs this plugin
+## Inference Hooks vs this stack
 
-Do **not** put Inference Hook `whsec_…` in the collector config. Use `tgk_…`.
+| Path | What |
+| --- | --- |
+| Anthropic **Inference Hooks** | Enterprise org traffic to `/v1/evaluate/claude` (`whsec_…`) |
+| **This plugin** | Local Claude Code hooks → `/v1/evaluate` with `tgk_…`, stamp `claude-code-plugin` |
+| **TrustGate MCP** | Tools gateway for Claude products via Connectors / plugin MCP |
 
-Inference Hook traffic uses `source.application` values such as `claude-ai` /
-`claude-code`. This plugin stamps `source.application=claude-code-plugin` so
-policy gates can split the two paths.
+Do not put `whsec_…` in Kandji collector config. Do not put `tgk_…` on the MCP connector.
