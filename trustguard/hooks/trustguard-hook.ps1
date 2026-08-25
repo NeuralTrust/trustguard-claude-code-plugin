@@ -7,7 +7,7 @@
 
 param([switch]$InstallOnly)
 
-$Version = '0.1.11'
+$Version = '0.1.12'
 
 $Sha256 = @{
     'amd64' = ''
@@ -42,6 +42,11 @@ function Install-Binary([string]$Url, [string]$Target, [string]$WantSha) {
 }
 
 try {
+    # MDM / ProgramData first — org binary must win over any developer PATH copy.
+    $programData = if ($env:ProgramData) { $env:ProgramData } else { 'C:\ProgramData' }
+    $mdmBin = Join-Path $programData 'TrustGuard\bin\trustguard-claude-code.exe'
+    if ((Test-Path $mdmBin) -and -not $InstallOnly) { Invoke-Hook $mdmBin }
+
     $onPath = Get-Command 'trustguard-claude-code' -ErrorAction SilentlyContinue
     if ($onPath -and -not $InstallOnly) { Invoke-Hook $onPath.Source }
 

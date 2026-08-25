@@ -11,8 +11,9 @@
 #   - Script: paste this file (after filling the CONFIG block below)
 #   - Assignment: Blueprint(s) with Claude Code users
 #
-# The Claude org plugin (hooks) is enabled in claude.ai Plugins — this script
-# only ships credentials + binary. See mdm/kandji/README.md.
+# Ships collector credentials + binary. Optionally also writes Claude Code
+# managed-settings.json (plugin + TrustGate MCP URL). See mdm/kandji/README.md
+# and mdm/claude/README.md.
 #
 # Exit codes: 0 success | 1 misconfiguration | 2 install failure
 set -euo pipefail
@@ -47,6 +48,15 @@ set -euo pipefail
 # Deploy separately if you do not want the API key in the Kandji script body.
 : "${TRUSTGUARD_SECRETS_FILE:=/Library/Managed Preferences/ai.neuraltrust.trustguard-claude-code.env}"
 
+# --- Claude Code managed settings (plugin + TrustGate MCP URL) ---
+# Set TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1 and TRUSTGATE_MCP_URL to write
+# /Library/Application Support/ClaudeCode/managed-settings.json (org-wide).
+: "${TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS:=0}"
+: "${TRUSTGATE_MCP_URL:=}"
+: "${TRUSTGUARD_MARKETPLACE_REPO:=NeuralTrust/trustguard-claude-code-plugin}"
+: "${TRUSTGUARD_PLUGIN_ID:=trustguard@neuraltrust}"
+: "${TRUSTGUARD_MARKETPLACE_NAME:=neuraltrust}"
+
 # =============================================================================
 # Paths (must match cli/config.go systemConfigPath on darwin)
 # =============================================================================
@@ -57,6 +67,8 @@ CONFIG_PATH="${SUPPORT_DIR}/claude-code.json"
 BIN_NAME="trustguard-claude-code"
 BIN_PATH="${BIN_DIR}/${BIN_NAME}"
 USR_LOCAL_BIN="/usr/local/bin/${BIN_NAME}"
+CLAUDE_SUPPORT_DIR="/Library/Application Support/ClaudeCode"
+CLAUDE_MANAGED_SETTINGS="${CLAUDE_SUPPORT_DIR}/managed-settings.json"
 LOG_PREFIX="trustguard-claude-code-kandji"
 
 log()  { echo "${LOG_PREFIX}: $*"; }
@@ -79,8 +91,8 @@ load_secrets_file() {
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ "$line" =~ ^[[:space:]]*$ ]] && continue
-    if [[ "$line" =~ ^(TRUSTGUARD_[A-Z0-9_]+)=(.*)$ ]]; then
-      export "${BASH_REMATCH[1]}=${BASH_REMATCH[2]}"
+    if [[ "$line" =~ ^((TRUSTGUARD|TRUSTGATE)_[A-Z0-9_]+)=(.*)$ ]]; then
+      export "${BASH_REMATCH[1]}=${BASH_REMATCH[3]}"
     fi
   done <"$f"
   set +a
@@ -229,12 +241,73 @@ PY
   log "wrote managed config ${CONFIG_PATH} (api_key locked for developers)"
 }
 
+write_claude_managed_settings() {
+  case "${TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS}" in
+    1|true|TRUE|yes|YES) ;;
+    *)
+      log "skip Claude managed-settings (set TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1 to deploy)"
+      return 0
+      ;;
+  esac
+
+  if [[ -z "${TRUSTGATE_MCP_URL}" || "${TRUSTGATE_MCP_URL}" == *REPLACE_ME* ]]; then
+    die "TRUSTGATE_MCP_URL is required when TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS=1" 1
+  fi
+  case "${TRUSTGATE_MCP_URL}" in
+    https://*) ;;
+    *) die "TRUSTGATE_MCP_URL must be an https:// MCP endpoint" 1 ;;
+  esac
+
+  mkdir -p "${CLAUDE_SUPPORT_DIR}"
+  chmod 755 "${CLAUDE_SUPPORT_DIR}"
+
+  local tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/tg-claude-managed.XXXXXX")"
+  export TRUSTGATE_MCP_URL TRUSTGUARD_MARKETPLACE_REPO TRUSTGUARD_PLUGIN_ID TRUSTGUARD_MARKETPLACE_NAME
+  /usr/bin/python3 - "$tmp" <<'PY'
+import json, os, sys
+path = sys.argv[1]
+marketplace = os.environ["TRUSTGUARD_MARKETPLACE_NAME"]
+plugin_id = os.environ["TRUSTGUARD_PLUGIN_ID"]
+repo = os.environ["TRUSTGUARD_MARKETPLACE_REPO"]
+doc = {
+    "extraKnownMarketplaces": {
+        marketplace: {
+            "source": {"source": "github", "repo": repo},
+            "autoUpdate": True,
+        }
+    },
+    "enabledPlugins": {plugin_id: True},
+    "pluginConfigs": {
+        plugin_id: {
+            "options": {
+                "trustgate_mcp_url": os.environ["TRUSTGATE_MCP_URL"].strip(),
+            }
+        }
+    },
+}
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(doc, f, indent=2)
+    f.write("\n")
+PY
+  install -m 0644 -o root -g wheel "$tmp" "${CLAUDE_MANAGED_SETTINGS}"
+  rm -f "$tmp"
+  log "wrote Claude managed settings ${CLAUDE_MANAGED_SETTINGS}"
+}
+
 verify() {
   [[ -x "${BIN_PATH}" ]] || die "binary missing after install" 2
   [[ -f "${CONFIG_PATH}" ]] || die "config missing after install" 2
   # Evaluate path without calling the network: ensure config is valid JSON
   /usr/bin/python3 -c "import json; json.load(open('${CONFIG_PATH}'))" \
     || die "config is not valid JSON" 2
+  case "${TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS}" in
+    1|true|TRUE|yes|YES)
+      [[ -f "${CLAUDE_MANAGED_SETTINGS}" ]] || die "Claude managed-settings missing" 2
+      /usr/bin/python3 -c "import json; json.load(open('${CLAUDE_MANAGED_SETTINGS}'))" \
+        || die "Claude managed-settings is not valid JSON" 2
+      ;;
+  esac
   log "verify ok — binary=$("${BIN_PATH}" version) config=${CONFIG_PATH}"
 }
 
@@ -243,11 +316,14 @@ main() {
   load_secrets_file "${TRUSTGUARD_SECRETS_FILE}"
   # Re-export after secrets file may have set them
   export TRUSTGUARD_DATA_URL TRUSTGUARD_API_KEY TRUSTGUARD_FAIL_MODE
+  export TRUSTGUARD_DEPLOY_CLAUDE_MANAGED_SETTINGS TRUSTGATE_MCP_URL
+  export TRUSTGUARD_MARKETPLACE_REPO TRUSTGUARD_PLUGIN_ID TRUSTGUARD_MARKETPLACE_NAME
   validate_config
   install_binary
   write_managed_config
+  write_claude_managed_settings
   verify
-  log "done. Enable the Trustguard plugin in Claude org Plugins; hooks will use this managed key."
+  log "done. Hooks use managed collector key; Claude managed-settings force plugin + MCP URL when enabled."
 }
 
 main "$@"

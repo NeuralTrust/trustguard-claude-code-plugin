@@ -41,3 +41,4 @@ jobs:
           python3 -c "import json; json.load(open('trustguard/.claude-plugin/plugin.json'))"
           python3 -c "import json; json.load(open('trustguard/hooks/hooks.json'))"
           python3 -c "import json; json.load(open('.claude-plugin/marketplace.json'))"
+          python3 -c "import json; d=json.load(open('mdm/claude/managed-settings.json')); assert d['enabledPlugins']['trustguard@neuraltrust'] is True; assert 'options' in d['pluginConfigs']['trustguard@neuraltrust']"
