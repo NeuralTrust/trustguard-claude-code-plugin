@@ -18,8 +18,10 @@ Full org picture: [`docs/enterprise.md`](../../docs/enterprise.md) and
 
 1. TrustGuard → **Claude Code / IDE** collector → mint `tgk_…` + data-plane URL.
 2. TrustGate Connect → org MCP URL (`https://host/slug/mcp`).
-3. Publish a GitHub **release** of this repo (or stage the binary offline).
-4. Feature work merged to the marketplace default branch.
+3. Feature work merged to `main` — the **Release** workflow tags and uploads
+   binaries (or stage offline with `TRUSTGUARD_LOCAL_BINARY`).
+4. Pin `TRUSTGUARD_CLAUDE_CODE_VERSION` in Kandji to the published tag (optional;
+   empty = latest).
 
 ## What gets installed
 

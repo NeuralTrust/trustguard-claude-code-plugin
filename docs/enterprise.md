@@ -110,7 +110,7 @@ Only for **Claude Code lifecycle hooks** (firewall). Not used by org MCP.
 - [ ] TrustGate Connect: public (or allowlisted) MCP URL
 - [ ] claude.ai Owner: org **Connectors** → TrustGate custom remote MCP (all products)
 - [ ] Pilot users: Connect OAuth on claude.ai / Desktop / Code
-- [ ] Merge plugin to marketplace default branch + GitHub release (binaries)
+- [ ] Merge plugin to `main` → **Release** workflow publishes GitHub Release (binaries)
 - [ ] Claude Code managed settings: enable `trustguard@neuraltrust` only
 - [ ] Kandji: collector + binary on Macs that run Claude Code
 - [ ] Pilot Claude Code: `/status`, hooks → TrustGuard `source.application=claude-code-plugin`

@@ -126,6 +126,27 @@ Stamps: `collector.type=ide`, `source.application=claude-code-plugin`,
 make build && make test && make install-local
 ```
 
+## Releases (automated)
+
+Same model as the Cursor plugin. On every push to `main`, the **Release**
+workflow:
+
+| State on `main` | Action |
+| --- | --- |
+| Version in `plugin.json` **not** tagged yet | Rebuild, verify pinned SHA-256, tag `vX.Y.Z`, upload `dist/*` |
+| Version already released | Bump patch, pin new checksums, push `release/vX.Y.Z` (open the PR from the run summary) |
+
+Merging that release PR publishes. Manual: **Actions → Release → Run workflow**.
+
+```bash
+make release-plan   # mode=publish|prepare + version
+make dist VERSION=0.1.13
+python3 scripts/release.py verify 0.1.13
+```
+
+Kandji / bootstrap downloads:
+`https://github.com/NeuralTrust/trustguard-claude-code-plugin/releases/download/vX.Y.Z/…`
+
 ## License
 
 Apache-2.0 — see [`LICENSE`](./LICENSE).
