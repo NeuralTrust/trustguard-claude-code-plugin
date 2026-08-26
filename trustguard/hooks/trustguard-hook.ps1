@@ -7,11 +7,11 @@
 
 param([switch]$InstallOnly)
 
-$Version = '0.1.14'
+$Version = '0.1.15'
 
 $Sha256 = @{
-    'amd64' = 'cfa3a9b649f18940bfb1848716f67cb6ebee3a69074a13f2b6d3df3aaacada53'
-    'arm64' = 'ad01759a254a8342f0d511eabd328affade20531e6bcb231d045dce0e9488021'
+    'amd64' = 'c9f49b00072c6dc54c5efbba51b01ef1b3fc76eb43ad98c487fb97269613ee5b'
+    'arm64' = '3e840c0f5354879e7b52e827c6e86e8b5dd884db806c0bdd0e9adcd1dd655882'
 }
 
 $Stdin = if ($InstallOnly) { $null } else { [Console]::In.ReadToEnd() }
