@@ -15,9 +15,7 @@ test: ## Run the test suite
 lint: ## Vet the sources
 	go vet ./cli/
 
-kandji-syntax: ## Shell-check Kandji MDM scripts
-	@sh -n mdm/kandji/install-trustguard-claude-code.sh
-	@sh -n mdm/kandji/audit-trustguard-claude-code.sh
+kandji-syntax: ## Shell-check Kandji MDM scripts (bash; they are not POSIX sh)
 	@bash -n mdm/kandji/install-trustguard-claude-code.sh
 	@bash -n mdm/kandji/audit-trustguard-claude-code.sh
 	@echo "kandji scripts: syntax ok"
