@@ -192,19 +192,6 @@ func TestPrimaryReasonPrefersGateNameOverInternalSignal(t *testing.T) {
 	if got != "Rule 1" {
 		t.Fatalf("primaryReason = %q, want %q", got, "Rule 1")
 	}
-	msg := askMessage(got)
-	want := `TrustGuard policy "Rule 1" needs your approval.`
-	if msg != want {
-		t.Fatalf("askMessage = %q, want %q", msg, want)
-	}
-}
-
-func TestAskMessageWithoutReason(t *testing.T) {
-	got := askMessage("")
-	want := "A TrustGuard policy needs your approval to continue."
-	if got != want {
-		t.Fatalf("askMessage(\"\") = %q, want %q", got, want)
-	}
 }
 
 func TestMCPCallName(t *testing.T) {
@@ -268,9 +255,8 @@ func TestPreToolUseGateAskEmitsAsk(t *testing.T) {
 		t.Fatalf("expected gate ask, got %+v", out)
 	}
 	got := out.HookSpecificOutput.PermissionDecisionReason
-	want := `TrustGuard policy "confirm-bash" needs your approval.`
-	if got != want {
-		t.Fatalf("ask reason = %q, want %q", got, want)
+	if got != askApprovalMessage {
+		t.Fatalf("ask reason = %q, want %q", got, askApprovalMessage)
 	}
 	if strings.Contains(got, "gate_ask") {
 		t.Fatalf("internal signal type must not appear in the prompt, got %q", got)
