@@ -183,6 +183,30 @@ func TestMCPPreToolUseStripsConnectorPrefix(t *testing.T) {
 	}
 }
 
+func TestPrimaryReasonPrefersGateNameOverInternalSignal(t *testing.T) {
+	got := primaryReason([]Finding{{
+		Source:  FindingSource{Kind: "gate", GateName: "Rule 1"},
+		Signal:  &FindingSignal{Type: "gate_ask"},
+		Outcome: &FindingOutcome{Action: "ask"},
+	}})
+	if got != "Rule 1" {
+		t.Fatalf("primaryReason = %q, want %q", got, "Rule 1")
+	}
+	msg := askMessage(got)
+	want := `TrustGuard policy "Rule 1" needs your approval.`
+	if msg != want {
+		t.Fatalf("askMessage = %q, want %q", msg, want)
+	}
+}
+
+func TestAskMessageWithoutReason(t *testing.T) {
+	got := askMessage("")
+	want := "A TrustGuard policy needs your approval to continue."
+	if got != want {
+		t.Fatalf("askMessage(\"\") = %q, want %q", got, want)
+	}
+}
+
 func TestMCPCallName(t *testing.T) {
 	cases := []struct {
 		in, want string
@@ -243,8 +267,13 @@ func TestPreToolUseGateAskEmitsAsk(t *testing.T) {
 	if out.HookSpecificOutput == nil || out.HookSpecificOutput.PermissionDecision != "ask" {
 		t.Fatalf("expected gate ask, got %+v", out)
 	}
-	if !strings.Contains(out.HookSpecificOutput.PermissionDecisionReason, "confirm-bash") {
-		t.Fatalf("expected gate name in reason, got %+v", out.HookSpecificOutput)
+	got := out.HookSpecificOutput.PermissionDecisionReason
+	want := `TrustGuard policy "confirm-bash" needs your approval.`
+	if got != want {
+		t.Fatalf("ask reason = %q, want %q", got, want)
+	}
+	if strings.Contains(got, "gate_ask") {
+		t.Fatalf("internal signal type must not appear in the prompt, got %q", got)
 	}
 }
 
