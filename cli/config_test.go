@@ -57,7 +57,7 @@ func TestConsumerIDForReadsClaudeJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := consumerIDFor(Config{})
-	if got != "claude-code:joan@acme.com" {
+	if got != "joan@acme.com" {
 		t.Fatalf("got %q", got)
 	}
 }

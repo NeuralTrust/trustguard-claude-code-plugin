@@ -209,7 +209,7 @@ func consumerIDFor(cfg Config) string {
 		return cfg.ConsumerID
 	}
 	if email := claudeAccountEmail(); email != "" {
-		return "claude-code:" + email
+		return email
 	}
 	return currentUser()
 }
@@ -278,8 +278,8 @@ func emailFromClaudeJSON(path string) string {
 
 func currentUser() string {
 	if u, err := user.Current(); err == nil && u.Username != "" {
-		return "claude-code:" + u.Username
+		return u.Username
 	}
 	host, _ := os.Hostname()
-	return "claude-code:" + host
+	return host
 }
