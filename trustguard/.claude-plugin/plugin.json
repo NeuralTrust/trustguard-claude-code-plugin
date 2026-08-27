@@ -1,6 +1,6 @@
 {
   "name": "trustguard",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "TrustGuard AI firewall for Claude Code (lifecycle hooks only). TrustGate MCP is org-wide via Claude Organization Connectors — not this plugin.",
   "author": {
     "name": "NeuralTrust",
