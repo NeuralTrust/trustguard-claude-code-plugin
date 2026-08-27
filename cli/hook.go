@@ -119,6 +119,7 @@ func buildEvaluateRequest(cfg Config, in hookInput) (EvaluateRequest, bool) {
 			},
 		},
 	}
+	stampUserEmail(base.Attributes, claudeAccountEmail())
 
 	switch in.HookEventName {
 	case "UserPromptSubmit":
@@ -407,6 +408,13 @@ func mcpCallName(hookToolName string) string {
 		return name
 	}
 	return hookToolName
+}
+
+func stampUserEmail(attrs map[string]any, email string) {
+	if email == "" {
+		return
+	}
+	attrs["user"] = map[string]any{"email": email}
 }
 
 func stampToolName(attrs map[string]any, toolName string) {

@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -65,6 +67,7 @@ func blockResponse(signalType, detector string) EvaluateResponse {
 }
 
 func TestPromptBlock(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(t.TempDir(), ".claude"))
 	srv, captured := stubGuard(t, blockResponse("jailbreak", "rt-prompt-guard"))
 	out := invokeHook(t, testConfig(srv.URL), map[string]any{
 		"hook_event_name": "UserPromptSubmit",
@@ -87,6 +90,9 @@ func TestPromptBlock(t *testing.T) {
 	}
 	if (*captured)["consumer_id"] != "claude-code:test" {
 		t.Fatalf("expected configured consumer_id, got %v", (*captured)["consumer_id"])
+	}
+	if got := userEmailAttr(t, captured); got != "" {
+		t.Fatalf("expected no attributes.user.email without ~/.claude.json, got %q", got)
 	}
 }
 
@@ -374,4 +380,32 @@ func TestConsumerIDFallsBackToConfig(t *testing.T) {
 	if (*captured)["consumer_id"] != "claude-code:mdm-user" {
 		t.Fatalf("expected configured consumer_id, got %v", (*captured)["consumer_id"])
 	}
+}
+
+func TestEvaluateStampsUserEmailFromClaudeJSON(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
+	if err := os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"joan@acme.com"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	srv, captured := stubGuard(t, EvaluateResponse{Status: "allow"})
+	_ = invokeHook(t, testConfig(srv.URL), map[string]any{
+		"hook_event_name": "UserPromptSubmit",
+		"prompt":          "hello",
+		"session_id":      "thr_1",
+	})
+	if (*captured)["consumer_id"] != "claude-code:test" {
+		t.Fatalf("configured consumer_id must still win, got %v", (*captured)["consumer_id"])
+	}
+	if got := userEmailAttr(t, captured); got != "joan@acme.com" {
+		t.Fatalf("expected attributes.user.email=joan@acme.com, got %q", got)
+	}
+}
+
+func userEmailAttr(t *testing.T, captured *map[string]any) string {
+	t.Helper()
+	attrs, _ := (*captured)["attributes"].(map[string]any)
+	user, _ := attrs["user"].(map[string]any)
+	email, _ := user["email"].(string)
+	return email
 }
