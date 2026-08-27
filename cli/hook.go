@@ -20,8 +20,6 @@ type hookInput struct {
 	TurnID         string `json:"turn_id"`
 	Model          string `json:"model"`
 	PermissionMode string `json:"permission_mode"`
-	// UserEmail is optional; Claude Code does not always send it. Prefer when present.
-	UserEmail string `json:"user_email"`
 
 	// UserPromptSubmit
 	Prompt string `json:"prompt"`
@@ -109,7 +107,7 @@ func buildEvaluateRequest(cfg Config, in hookInput) (EvaluateRequest, bool) {
 	base := EvaluateRequest{
 		Direction:  "input",
 		SessionID:  in.SessionID,
-		ConsumerID: consumerIDFor(cfg, in),
+		ConsumerID: consumerIDFor(cfg),
 		Attributes: map[string]any{
 			"collector": map[string]any{"type": "ide"},
 			"source":    map[string]any{"application": "claude-code-plugin"},

@@ -48,3 +48,29 @@ func TestManagedModeLocksKeyFields(t *testing.T) {
 		t.Fatalf("soft pref timeout_ms not applied, got %d", cfg.TimeoutMS)
 	}
 }
+
+func TestConsumerIDForReadsClaudeJSON(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
+	path := filepath.Join(home, ".claude.json")
+	if err := os.WriteFile(path, []byte(`{"oauthAccount":{"emailAddress":"joan@acme.com"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := consumerIDFor(Config{})
+	if got != "claude-code:joan@acme.com" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestConsumerIDForConfiguredBeatsClaudeJSON(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
+	path := filepath.Join(home, ".claude.json")
+	if err := os.WriteFile(path, []byte(`{"oauthAccount":{"emailAddress":"joan@acme.com"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := consumerIDFor(Config{ConsumerID: "claude-code:mdm"})
+	if got != "claude-code:mdm" {
+		t.Fatalf("got %q", got)
+	}
+}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -34,8 +35,8 @@ type Config struct {
 	TimeoutMS int `json:"timeout_ms"`
 	// MaxContentBytes truncates tool content sent to the guard.
 	MaxContentBytes int `json:"max_content_bytes"`
-	// ConsumerID anchors anomaly detection and policy routing. Prefer an
-	// email from the hook payload at runtime; this field is the fallback.
+	// ConsumerID is an explicit override (MDM / TRUSTGUARD_CONSUMER_ID).
+	// If empty, runtime uses the Claude account email from ~/.claude.json.
 	ConsumerID string `json:"consumer_id"`
 	// Events disables individual hook events, e.g. {"PostToolUse": false}.
 	Events map[string]bool `json:"events"`
@@ -183,9 +184,6 @@ func (c *Config) applyDefaults() {
 	if c.MaxContentBytes <= 0 {
 		c.MaxContentBytes = defaultMaxContentBytes
 	}
-	if c.ConsumerID == "" {
-		c.ConsumerID = currentUser()
-	}
 }
 
 func (c *Config) timeout() time.Duration {
@@ -204,17 +202,78 @@ func (c *Config) reportNotice() bool {
 	return c.ReportNotice == nil || *c.ReportNotice
 }
 
-// consumerIDFor prefers an email from the hook payload when present, then the
-// configured fallback, then the OS user. Claude Code common fields do not always
-// include email; managed installs often set consumer_id via MDM.
-func consumerIDFor(cfg Config, in hookInput) string {
-	if email := strings.TrimSpace(in.UserEmail); email != "" {
-		return "claude-code:" + email
-	}
+// consumerIDFor prefers an explicit configured consumer_id, then the logged-in
+// Claude account in ~/.claude.json, then the OS user.
+func consumerIDFor(cfg Config) string {
 	if cfg.ConsumerID != "" {
 		return cfg.ConsumerID
 	}
+	if email := claudeAccountEmail(); email != "" {
+		return "claude-code:" + email
+	}
 	return currentUser()
+}
+
+func looksLikeEmail(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" || !strings.Contains(s, "@") || strings.ContainsAny(s, " \t\n") {
+		return ""
+	}
+	return s
+}
+
+func claudeAccountEmail() string {
+	for _, p := range claudeJSONPaths() {
+		if email := emailFromClaudeJSON(p); email != "" {
+			return email
+		}
+	}
+	return ""
+}
+
+func claudeJSONPaths() []string {
+	seen := map[string]struct{}{}
+	var paths []string
+	add := func(p string) {
+		if p == "" {
+			return
+		}
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		paths = append(paths, p)
+	}
+	if dir := strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")); dir != "" {
+		add(filepath.Join(dir, ".claude.json"))
+		add(filepath.Join(filepath.Dir(dir), ".claude.json"))
+		return paths
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		add(filepath.Join(home, ".claude.json"))
+	}
+	return paths
+}
+
+func emailFromClaudeJSON(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	var doc struct {
+		OAuthAccount *struct {
+			EmailAddress        string `json:"emailAddress"`
+			PrimaryEmailAddress string `json:"primaryEmailAddress"`
+		} `json:"oauthAccount"`
+	}
+	if err := json.NewDecoder(io.LimitReader(f, 2<<20)).Decode(&doc); err != nil || doc.OAuthAccount == nil {
+		return ""
+	}
+	if email := looksLikeEmail(doc.OAuthAccount.EmailAddress); email != "" {
+		return email
+	}
+	return looksLikeEmail(doc.OAuthAccount.PrimaryEmailAddress)
 }
 
 func currentUser() string {
