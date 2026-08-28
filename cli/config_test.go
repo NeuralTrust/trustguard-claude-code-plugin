@@ -49,28 +49,14 @@ func TestManagedModeLocksKeyFields(t *testing.T) {
 	}
 }
 
-func TestConsumerIDForReadsClaudeJSON(t *testing.T) {
+func TestClaudeAccountEmailReadsClaudeJSON(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
 	path := filepath.Join(home, ".claude.json")
 	if err := os.WriteFile(path, []byte(`{"oauthAccount":{"emailAddress":"joan@acme.com"}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got := consumerIDFor(Config{})
-	if got != "joan@acme.com" {
-		t.Fatalf("got %q", got)
-	}
-}
-
-func TestConsumerIDForConfiguredBeatsClaudeJSON(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
-	path := filepath.Join(home, ".claude.json")
-	if err := os.WriteFile(path, []byte(`{"oauthAccount":{"emailAddress":"joan@acme.com"}}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	got := consumerIDFor(Config{ConsumerID: "claude-code:mdm"})
-	if got != "claude-code:mdm" {
+	if got := claudeAccountEmail(); got != "joan@acme.com" {
 		t.Fatalf("got %q", got)
 	}
 }
