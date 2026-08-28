@@ -110,9 +110,9 @@ Or `claude --plugin-dir ./trustguard` from a clone.
 | `PostToolUse` | `mcp` result | output | `decision: "block"` + untrusted guidance | allowed — must not re-challenge an approved tool |
 
 Stamps: `collector.type=ide`, `source.application=claude-code-plugin`,
-`consumer_id` is the account email from `~/.claude.json`
-(`oauthAccount.emailAddress`). The collector already identifies the source.
-Override with `TRUSTGUARD_CONSUMER_ID` or `consumer_id` in config.
+`attributes.user.email` is the account email from `~/.claude.json`
+(`oauthAccount.emailAddress`). `consumer_id` is only sent when set via
+`TRUSTGUARD_CONSUMER_ID` or `consumer_id` in config; otherwise it is omitted.
 
 ## Layout
 
