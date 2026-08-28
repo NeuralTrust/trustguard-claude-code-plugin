@@ -67,19 +67,23 @@ type verdict struct {
 func runHook(stdin io.Reader, stdout io.Writer, cfg Config) error {
 	// Decode incrementally: Claude Code may keep the stdin pipe open after writing
 	// the event, so waiting for EOF would hang the hook forever.
+	var raw json.RawMessage
+	if err := json.NewDecoder(io.LimitReader(stdin, 16<<20)).Decode(&raw); err != nil {
+		return fmt.Errorf("decode hook input: %w", err)
+	}
 	var in hookInput
-	if err := json.NewDecoder(io.LimitReader(stdin, 16<<20)).Decode(&in); err != nil {
+	if err := json.Unmarshal(raw, &in); err != nil {
 		return fmt.Errorf("decode hook input: %w", err)
 	}
 
-	out := decideEvent(cfg, in)
+	out := decideEvent(cfg, in, hookAttributes(raw))
 	if err := json.NewEncoder(stdout).Encode(out); err != nil {
 		return fmt.Errorf("write hook output: %w", err)
 	}
 	return nil
 }
 
-func decideEvent(cfg Config, in hookInput) hookOutput {
+func decideEvent(cfg Config, in hookInput, hookAttrs map[string]any) hookOutput {
 	if cfg.APIKey == "" {
 		logf("TRUSTGUARD_API_KEY missing; allowing %s without evaluation", in.HookEventName)
 		return allowOutput(in)
@@ -88,7 +92,7 @@ func decideEvent(cfg Config, in hookInput) hookOutput {
 		return allowOutput(in)
 	}
 
-	req, ok := buildEvaluateRequest(cfg, in)
+	req, ok := buildEvaluateRequest(cfg, in, hookAttrs)
 	if !ok {
 		return allowOutput(in)
 	}
@@ -103,20 +107,15 @@ func decideEvent(cfg Config, in hookInput) hookOutput {
 }
 
 // buildEvaluateRequest maps one Claude Code event onto the /v1/evaluate contract.
-func buildEvaluateRequest(cfg Config, in hookInput) (EvaluateRequest, bool) {
+func buildEvaluateRequest(cfg Config, in hookInput, hookAttrs map[string]any) (EvaluateRequest, bool) {
 	base := EvaluateRequest{
 		Direction:  "input",
 		SessionID:  in.SessionID,
 		ConsumerID: cfg.ConsumerID,
 		Attributes: map[string]any{
-			"collector": map[string]any{"type": "ide"},
-			"source":    map[string]any{"application": "claude-code-plugin"},
-			"claude_code": map[string]any{
-				"event": in.HookEventName,
-				"cwd":   in.Cwd,
-				"model": in.Model,
-				"turn":  in.TurnID,
-			},
+			"collector":   map[string]any{"type": "ide"},
+			"source":      map[string]any{"application": "claude-code-plugin"},
+			"claude_code": hookAttrs,
 		},
 	}
 	stampUserEmail(base.Attributes, claudeAccountEmail())
@@ -422,6 +421,16 @@ func stampToolName(attrs map[string]any, toolName string) {
 		return
 	}
 	attrs["tool"] = map[string]any{"name": toolName}
+}
+
+// hookAttributes is the stdin JSON as a map so every field Claude Code sent
+// (including ones this binary does not decode) travels in attributes.claude_code.
+func hookAttributes(raw json.RawMessage) map[string]any {
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil || m == nil {
+		return map[string]any{}
+	}
+	return m
 }
 
 func clip(s string, n int) string {
