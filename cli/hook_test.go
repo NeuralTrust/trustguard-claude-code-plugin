@@ -94,6 +94,10 @@ func TestPromptBlock(t *testing.T) {
 	if got := userEmailAttr(t, captured); got != "" {
 		t.Fatalf("expected no attributes.user.email without ~/.claude.json, got %q", got)
 	}
+	cc := hookAttr(t, captured, "claude_code")
+	if cc["hook_event_name"] != "UserPromptSubmit" || cc["cwd"] != "/tmp/demo" || cc["session_id"] != "thr_1" {
+		t.Fatalf("expected full hook JSON in attributes.claude_code, got %v", cc)
+	}
 }
 
 func TestPromptAllow(t *testing.T) {
@@ -424,10 +428,39 @@ func TestEvaluateStampsUserEmailFromClaudeJSON(t *testing.T) {
 	}
 }
 
+func TestEvaluateStampsFullHookJSON(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(t.TempDir(), ".claude"))
+	srv, captured := stubGuard(t, EvaluateResponse{Status: "allow"})
+	_ = invokeHook(t, testConfig(srv.URL), map[string]any{
+		"hook_event_name": "UserPromptSubmit",
+		"prompt":          "hello",
+		"session_id":      "thr_1",
+		"cwd":             "/tmp/demo",
+		"transcript_path": "/tmp/t.jsonl",
+		"permission_mode": "default",
+		"prompt_id":       "550e8400-e29b-41d4-a716-446655440000",
+		"future_extra":    "kept",
+	})
+	cc := hookAttr(t, captured, "claude_code")
+	if cc["permission_mode"] != "default" || cc["prompt_id"] != "550e8400-e29b-41d4-a716-446655440000" || cc["future_extra"] != "kept" {
+		t.Fatalf("attributes.claude_code must keep every stdin field, got %v", cc)
+	}
+}
+
 func userEmailAttr(t *testing.T, captured *map[string]any) string {
 	t.Helper()
 	attrs, _ := (*captured)["attributes"].(map[string]any)
 	user, _ := attrs["user"].(map[string]any)
 	email, _ := user["email"].(string)
 	return email
+}
+
+func hookAttr(t *testing.T, captured *map[string]any, key string) map[string]any {
+	t.Helper()
+	attrs, _ := (*captured)["attributes"].(map[string]any)
+	nested, _ := attrs[key].(map[string]any)
+	if nested == nil {
+		t.Fatalf("missing attributes.%s in %v", key, attrs)
+	}
+	return nested
 }
