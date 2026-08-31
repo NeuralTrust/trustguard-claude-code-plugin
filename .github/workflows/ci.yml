@@ -42,3 +42,6 @@ jobs:
           python3 -c "import json; json.load(open('trustguard/hooks/hooks.json'))"
           python3 -c "import json; json.load(open('.claude-plugin/marketplace.json'))"
           python3 -c "import json; d=json.load(open('mdm/claude/managed-settings.json')); assert d['enabledPlugins']['trustguard@neuraltrust'] is True; assert 'pluginConfigs' not in d; p=json.load(open('trustguard/.claude-plugin/plugin.json')); assert 'mcpServers' not in p and 'userConfig' not in p"
+          # Claude Code loads hooks/hooks.json on its own; declaring it here too
+          # makes plugin load fail with "Duplicate hooks file detected".
+          python3 -c "import json; p=json.load(open('trustguard/.claude-plugin/plugin.json')); assert 'hooks' not in p, 'plugin.json must not declare hooks; hooks/hooks.json loads automatically'"
