@@ -105,8 +105,7 @@ Or `claude --plugin-dir ./trustguard` from a clone.
 | Claude Code event | Protocol | Direction | On block | On ask |
 | --- | --- | --- | --- | --- |
 | `UserPromptSubmit` | `llm` | input | `decision: "block"` | continues with a warning (no confirmation UI) |
-| `PreToolUse` (`Bash`) | `all` | input | `permissionDecision: "deny"` | `permissionDecision: "ask"` |
-| `PreToolUse` (other / MCP tools) | `mcp` tools/call | input | same deny | same ask |
+| `PreToolUse` (any tool, `Bash` included) | `mcp` tools/call | input | `permissionDecision: "deny"` | `permissionDecision: "ask"` |
 | `PostToolUse` | `mcp` result | output | `decision: "block"` + untrusted guidance | allowed — must not re-challenge an approved tool |
 
 Stamps: `collector.type=ide`, `source.application=claude-code-plugin`,
