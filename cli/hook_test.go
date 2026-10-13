@@ -123,12 +123,23 @@ func TestBashPreToolUseBlock(t *testing.T) {
 	if out.HookSpecificOutput == nil || out.HookSpecificOutput.PermissionDecision != "deny" {
 		t.Fatalf("expected PreToolUse deny, got %+v", out)
 	}
-	if (*captured)["protocol"] != "all" {
-		t.Fatalf("expected protocol=all for Bash, got %v", (*captured)["protocol"])
+	if (*captured)["protocol"] != "mcp" {
+		t.Fatalf("expected protocol=mcp for Bash, got %v", (*captured)["protocol"])
 	}
 	payload := (*captured)["payload"].(map[string]any)
-	if payload["input"] != "rm -rf /" {
-		t.Fatalf("unexpected payload: %v", payload)
+	if payload["method"] != "tools/call" {
+		t.Fatalf("expected tools/call envelope, got %v", payload)
+	}
+	params := payload["params"].(map[string]any)
+	if params["name"] != "Bash" {
+		t.Fatalf("expected params.name=Bash, got %v", params)
+	}
+	if params["arguments"].(map[string]any)["command"] != "rm -rf /" {
+		t.Fatalf("expected params.arguments.command, got %v", params)
+	}
+	attrs := (*captured)["attributes"].(map[string]any)
+	if _, ok := attrs["tool"]; ok {
+		t.Fatalf("tools/call must not stamp attributes.tool, got %v", attrs)
 	}
 }
 
@@ -239,9 +250,9 @@ func TestPreToolUseTransformAskEmitsAsk(t *testing.T) {
 	if out.HookSpecificOutput == nil || out.HookSpecificOutput.PermissionDecision != "ask" {
 		t.Fatalf("expected PreToolUse ask, got %+v", out)
 	}
-	attrs := (*captured)["attributes"].(map[string]any)
-	if attrs["tool"].(map[string]any)["name"] != "Bash" {
-		t.Fatalf("expected attributes.tool.name=Bash, got %v", attrs)
+	params := (*captured)["payload"].(map[string]any)["params"].(map[string]any)
+	if params["name"] != "Bash" {
+		t.Fatalf("expected params.name=Bash, got %v", params)
 	}
 }
 
