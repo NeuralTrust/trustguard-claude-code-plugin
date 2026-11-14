@@ -20,7 +20,11 @@ Full org picture: [`docs/enterprise.md`](../../docs/enterprise.md) and
 2. TrustGate Connect → org MCP URL (`https://host/slug/mcp`).
 3. Feature work merged to `main` — the **Release** workflow tags and uploads
    binaries (or stage offline with `TRUSTGUARD_LOCAL_BINARY`).
-4. Pin `TRUSTGUARD_CLAUDE_CODE_VERSION` (e.g. `0.1.13`).
+4. Pin `TRUSTGUARD_CLAUDE_CODE_VERSION` (e.g. `0.1.13`) **and** set
+   `TRUSTGUARD_BINARY_SHA256` to the SHA-256 of that release's
+   `trustguard-claude-code_<version>_darwin_<arch>` asset. Both are required
+   for downloads: the script exits 1 without them and exits 2 (nothing
+   installed) if the downloaded binary does not match.
 5. **Private GitHub repo (this one):** Macs cannot download release assets
    anonymously (browser URL → **404**). Provide a read-only token:
 
@@ -59,6 +63,7 @@ Full org picture: [`docs/enterprise.md`](../../docs/enterprise.md) and
 : "${TRUSTGUARD_API_KEY:=tgk_…}"
 : "${TRUSTGUARD_FAIL_MODE:=closed}"
 : "${TRUSTGUARD_CLAUDE_CODE_VERSION:=0.1.13}"
+: "${TRUSTGUARD_BINARY_SHA256:=<sha256 of the darwin asset for this arch>}"
 
 # Private repo — required or downloads 404:
 : "${TRUSTGUARD_GITHUB_TOKEN:=github_pat_…}"
