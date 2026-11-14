@@ -31,15 +31,17 @@ set -euo pipefail
 # open | closed — closed denies when TrustGuard is unreachable.
 : "${TRUSTGUARD_FAIL_MODE:=closed}"
 
-# Pin a release (recommended). Empty = latest via GitHub API (needs network +
-# token if the repo is private). Example: 0.1.13
+# Pinned release (required for downloads; "latest" is never resolved).
+# Example: 0.1.13
 : "${TRUSTGUARD_CLAUDE_CODE_VERSION:=}"
 
 # Optional: full path to a pre-staged binary (skip download). Useful with Kandji
 # Auto Apps / file drop before this script runs.
 : "${TRUSTGUARD_LOCAL_BINARY:=}"
 
-# Optional: expected SHA-256 of the downloaded binary (empty = skip verify).
+# Expected SHA-256 of the binary for the pinned version and this Mac's arch.
+# Required for downloads (the script refuses to run without it); optional
+# with TRUSTGUARD_LOCAL_BINARY, which is verified too when it is set.
 : "${TRUSTGUARD_BINARY_SHA256:=}"
 
 # GitHub release base (override for mirrors / private caches).
@@ -157,6 +159,12 @@ validate_config() {
     open|closed) ;;
     *) die "TRUSTGUARD_FAIL_MODE must be open or closed (got ${TRUSTGUARD_FAIL_MODE})" 1 ;;
   esac
+  if [[ -z "${TRUSTGUARD_LOCAL_BINARY}" ]]; then
+    [[ -n "${TRUSTGUARD_CLAUDE_CODE_VERSION}" ]] \
+      || die "TRUSTGUARD_CLAUDE_CODE_VERSION is required for downloads (pin a release, e.g. 0.1.13)" 1
+    [[ "${TRUSTGUARD_BINARY_SHA256}" =~ ^[a-fA-F0-9]{64}$ ]] \
+      || die "TRUSTGUARD_BINARY_SHA256 is required for downloads (64 hex chars, SHA-256 of the pinned release asset)" 1
+  fi
   # Strip trailing slash and accidental /v1/evaluate
   TRUSTGUARD_DATA_URL="${TRUSTGUARD_DATA_URL%/}"
   TRUSTGUARD_DATA_URL="${TRUSTGUARD_DATA_URL%/v1/evaluate}"
@@ -171,38 +179,8 @@ detect_arch() {
 }
 
 resolve_version() {
-  if [[ -n "${TRUSTGUARD_CLAUDE_CODE_VERSION}" ]]; then
-    echo "${TRUSTGUARD_CLAUDE_CODE_VERSION#v}"
-    return
-  fi
-  if [[ -n "${TRUSTGUARD_LOCAL_BINARY}" ]]; then
-    echo "local"
-    return
-  fi
-  # Latest tag from GitHub (v0.1.13 → 0.1.13). Prefer pinning TRUSTGUARD_CLAUDE_CODE_VERSION.
-  local tag body code token
-  token="$(github_token)"
-  body="$(mktemp "${TMPDIR:-/tmp}/tg-release.XXXXXX")"
-  if [[ -n "$token" ]]; then
-    code="$(curl -sS -o "$body" -w '%{http_code}' --connect-timeout 10 --max-time 60 \
-      -H "Authorization: Bearer ${token}" \
-      -H "Accept: application/vnd.github+json" \
-      -H "X-GitHub-Api-Version: 2022-11-28" \
-      "https://api.github.com/repos/${TRUSTGUARD_GITHUB_REPO}/releases/latest" || true)"
-  else
-    code="$(curl -sS -o "$body" -w '%{http_code}' --connect-timeout 10 --max-time 60 \
-      -H "Accept: application/vnd.github+json" \
-      "https://api.github.com/repos/${TRUSTGUARD_GITHUB_REPO}/releases/latest" || true)"
-  fi
-  if [[ "$code" == "200" ]]; then
-    tag="$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("tag_name",""))' "$body" 2>/dev/null || true)"
-  fi
-  rm -f "$body"
-  tag="${tag#v}"
-  if [[ -z "$tag" ]]; then
-    die "could not resolve latest release (HTTP ${code:-?}). Private repo? Set TRUSTGUARD_GITHUB_TOKEN + TRUSTGUARD_CLAUDE_CODE_VERSION=0.1.13, or TRUSTGUARD_LOCAL_BINARY / public repo" 2
-  fi
-  echo "$tag"
+  # Pinned only: validate_config rejects downloads without a version.
+  echo "${TRUSTGUARD_CLAUDE_CODE_VERSION#v}"
 }
 
 download_release_binary() {
@@ -276,6 +254,18 @@ PY
   fi
 }
 
+# $1=file. Removes the file and exits 2 unless it matches TRUSTGUARD_BINARY_SHA256.
+verify_sha256() {
+  local f="$1" got want
+  want="$(echo "${TRUSTGUARD_BINARY_SHA256}" | tr '[:upper:]' '[:lower:]')"
+  got="$(shasum -a 256 "$f" | awk '{print $1}')"
+  if [[ -z "${want}" || "${got}" != "${want}" ]]; then
+    rm -f "$f"
+    die "SHA-256 mismatch (got ${got}, want ${want:-<unset>}); refusing to install" 2
+  fi
+  log "checksum ok"
+}
+
 install_binary() {
   mkdir -p "${BIN_DIR}"
   chmod 755 "${SUPPORT_DIR}" "${BIN_DIR}"
@@ -284,21 +274,17 @@ install_binary() {
     [[ -f "${TRUSTGUARD_LOCAL_BINARY}" ]] || die "TRUSTGUARD_LOCAL_BINARY not found: ${TRUSTGUARD_LOCAL_BINARY}" 2
     log "installing binary from ${TRUSTGUARD_LOCAL_BINARY}"
     cp "${TRUSTGUARD_LOCAL_BINARY}" "${BIN_PATH}.new"
+    if [[ -n "${TRUSTGUARD_BINARY_SHA256}" ]]; then
+      verify_sha256 "${BIN_PATH}.new"
+    fi
   else
     local version arch tmp
     version="$(resolve_version)"
     arch="$(detect_arch)"
     tmp="$(mktemp "${TMPDIR:-/tmp}/tg-claude-code.XXXXXX")"
     download_release_binary "$version" "$arch" "$tmp"
-    if [[ -n "${TRUSTGUARD_BINARY_SHA256}" ]]; then
-      local got
-      got="$(shasum -a 256 "$tmp" | awk '{print $1}')"
-      if [[ "${got}" != "${TRUSTGUARD_BINARY_SHA256}" ]]; then
-        rm -f "$tmp"
-        die "SHA-256 mismatch (got ${got}, want ${TRUSTGUARD_BINARY_SHA256})" 2
-      fi
-      log "checksum ok"
-    fi
+    # Always verify before the binary is made executable or run as root.
+    verify_sha256 "$tmp"
     mv "$tmp" "${BIN_PATH}.new"
   fi
 
