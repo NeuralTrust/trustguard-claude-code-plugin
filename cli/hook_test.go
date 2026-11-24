@@ -456,6 +456,41 @@ func TestEvaluateStampsFullHookJSON(t *testing.T) {
 	if cc["permission_mode"] != "default" || cc["prompt_id"] != "550e8400-e29b-41d4-a716-446655440000" || cc["future_extra"] != "kept" {
 		t.Fatalf("attributes.claude_code must keep every stdin field, got %v", cc)
 	}
+	if _, ok := cc["prompt"]; ok {
+		t.Fatalf("attributes.claude_code must not repeat the prompt the payload carries, got %v", cc)
+	}
+}
+
+// The content an event is evaluated on travels once, in the payload: a copy
+// under attributes is stored unclipped and never masked by DLP.
+func TestEvaluateKeepsToolContentOutOfHookAttributes(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(t.TempDir(), ".claude"))
+	for _, event := range []string{"PreToolUse", "PostToolUse"} {
+		t.Run(event, func(t *testing.T) {
+			srv, captured := stubGuard(t, EvaluateResponse{Status: "allow"})
+			_ = invokeHook(t, testConfig(srv.URL), map[string]any{
+				"hook_event_name": event,
+				"tool_name":       "Bash",
+				"tool_input":      map[string]any{"command": "echo 555-0100"},
+				"tool_response":   "555-0100",
+				"tool_use_id":     "toolu_1",
+				"session_id":      "thr_1",
+				"cwd":             "/tmp/demo",
+			})
+			if (*captured)["payload"] == nil {
+				t.Fatalf("expected an evaluated payload, got %v", *captured)
+			}
+			cc := hookAttr(t, captured, "claude_code")
+			for _, field := range []string{"prompt", "tool_input", "tool_response"} {
+				if _, ok := cc[field]; ok {
+					t.Fatalf("attributes.claude_code must not carry %s, got %v", field, cc)
+				}
+			}
+			if cc["tool_name"] != "Bash" || cc["tool_use_id"] != "toolu_1" || cc["cwd"] != "/tmp/demo" || cc["hook_event_name"] != event {
+				t.Fatalf("attributes.claude_code must keep the event's metadata, got %v", cc)
+			}
+		})
+	}
 }
 
 func userEmailAttr(t *testing.T, captured *map[string]any) string {
