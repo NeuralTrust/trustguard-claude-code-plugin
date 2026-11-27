@@ -99,7 +99,7 @@ func TestPostToolUseSendsBlocksOnlyWhenLossless(t *testing.T) {
 		{"only blank text blocks", "mcp__echo__echo", `[{"type":"text","text":" "},{"type":"text","text":""}]`, 0, "", false},
 		{"oversize single resource block", "mcp__echo__echo", `[` + resource + `]`, 20, "", true},
 		{"blocks exceed the budget together", "mcp__echo__echo", `[{"type":"text","text":"aaaa"},{"type":"text","text":"bbbb"}]`, 6, "", true},
-		{"json string is not decoded", "mcp__echo__echo", `"[{\"type\":\"text\",\"text\":\"a\"}]"`, 0, "", false},
+		{"json string array is structuredContent, sent as its probe", "mcp__echo__echo", `"[{\"type\":\"text\",\"text\":\"a\"}]"`, 0, `[{"type":"text","text":"text\na\ntype\ntext"}]`, false},
 		{"built-in tool with an array output", "Bash", `[{"type":"text","text":"a"}]`, 0, "", false},
 		{"built-in tool with a content object", "WebFetch", `{"content":[{"type":"text","text":"a"}]}`, 0, "", false},
 	}

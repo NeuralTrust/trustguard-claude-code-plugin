@@ -11,17 +11,17 @@
 # The VERSION and SHA256_* table are updated per release.
 set -u
 
-VERSION="0.1.24"
+VERSION="0.1.25"
 BASE_URL="${TRUSTGUARD_CLAUDE_CODE_DOWNLOAD_BASE:-https://github.com/NeuralTrust/trustguard-claude-code-plugin/releases/download}"
 BIN_DIR="${TRUSTGUARD_CLAUDE_CODE_BIN_DIR:-$HOME/.trustguard/bin}"
 
 # Per-platform SHA-256 of the release binaries (filled per release).
-SHA256_darwin_amd64="fa5ef195f4a3ad301e4ef54339f8da7190d35d4e4c6d1a922f4878261121b51f"
-SHA256_darwin_arm64="6000cc87aff4b381dc403a4c0f8250d461d7365624bafd14752568b90830352b"
-SHA256_linux_amd64="199713d1dc61eeb6d78e4f380217ebcc5e736f36fa3aab256276a03908bd9087"
-SHA256_linux_arm64="629469570359041673275828dd8d1c284bc355516ca4ae07ab5beffb87a392eb"
-SHA256_windows_amd64="a3d245869d2f6913f696cdd348cc96ca501d44cd445c6628f35066515ff757e4"
-SHA256_windows_arm64="3bb5b73e48e3182a7691be7f305aab4e1fa6006a38725bad442cfe78b2fc5e85"
+SHA256_darwin_amd64="cd0ae5156a2c602623d5bb2efe1779aafe09bac3cedb72d4626393afc218f5f0"
+SHA256_darwin_arm64="c904457c4b66450c08712bebd0d5cd7f39dce7aa3e70daf8917988ba348abde0"
+SHA256_linux_amd64="3c1b09a2ed0cfb3f806b11490e0ab2ed9b14157b4a9090773bcae5b7145cfba6"
+SHA256_linux_arm64="6d2f4c567332813a1a5b250f2f993845aaf4fbb59a4d9dd40efd1f1bf98a6c40"
+SHA256_windows_amd64="4fee77d067add9b96c5eb2b3b745d313d8ef6cf8ee6540097297d6b1e321a54e"
+SHA256_windows_arm64="3fb36b2eb4455f09a616c782d43907803248ce439933aa5b157cfce8668649bb"
 
 fail_open() {
     echo "trustguard-claude-code bootstrap: $1 — allowing without evaluation" >&2

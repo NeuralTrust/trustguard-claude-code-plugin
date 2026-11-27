@@ -144,3 +144,71 @@ func TestMCPResultBudgetCountsTheEscapedEncoding(t *testing.T) {
 		}
 	}
 }
+
+// Claude Code passes structuredContent as a JSON string; the probe carries its keys and values.
+func TestMCPResultStructuredContentStringIsSentAsTheProbe(t *testing.T) {
+	asString := func(s string) string { b, _ := json.Marshal(s); return string(b) }
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{"captured from Claude Code", `{"order":"144506a1","office":"Madrid"}`, "office\nMadrid\norder\n144506a1"},
+		{"nested, null, bools, numbers as written", `{"b":[1.50,null,true,"s"],"a":{"z":"w","y":false},"big":12345678901234567890}`, "a\ny\nfalse\nz\nw\nb\n1.50\nnull\ntrue\ns\nbig\n12345678901234567890"},
+		{"blank strings and keys are skipped", `{" ":"  ","k":" ","m":"v"}`, "k\nm\nv"},
+		{"array", `["a",{"k":"v"},2]`, "a\nk\nv\n2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, sent := sendToolResult(t, 0, "mcp__probe__order", asString(tt.body))
+			if !sent {
+				t.Fatal("no evaluate sent")
+			}
+			want := []any{map[string]any{"type": "text", "text": tt.want}}
+			if blocks := sentContent(t, got); !reflect.DeepEqual(blocks, want) {
+				t.Fatalf("content = %v, want %v", blocks, want)
+			}
+		})
+	}
+}
+
+// Anything that is not an object or array inside the string keeps the single block.
+func TestMCPResultStructuredContentStringFallbacks(t *testing.T) {
+	asString := func(s string) string { b, _ := json.Marshal(s); return string(b) }
+	long := `{"k":"` + strings.Repeat("v", 200) + `"}`
+	tests := []struct {
+		name   string
+		tool   string
+		body   string
+		budget int
+	}{
+		{"plain text", "mcp__probe__order", "Order shipped on Monday", 0},
+		{"invalid json", "mcp__probe__order", `{"order":`, 0},
+		{"trailing data", "mcp__probe__order", `{"k":"v"} extra`, 0},
+		{"scalar number", "mcp__probe__order", "42", 0},
+		{"scalar string", "mcp__probe__order", `"x"`, 0},
+		{"empty object", "mcp__probe__order", `{}`, 0},
+		{"blank values only", "mcp__probe__order", `{" ":" "}`, 0},
+		{"not an mcp tool", "Bash", `{"order":"144506a1"}`, 0},
+		{"over budget", "mcp__probe__order", long, 100},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, sent := sendToolResult(t, tt.budget, tt.tool, asString(tt.body))
+			if !sent {
+				t.Fatal("no evaluate sent")
+			}
+			want := []any{map[string]any{"type": "text", "text": clip(tt.body, effectiveBudget(tt.budget))}}
+			if blocks := sentContent(t, got); !reflect.DeepEqual(blocks, want) {
+				t.Fatalf("content = %v, want %v", blocks, want)
+			}
+		})
+	}
+}
+
+func effectiveBudget(b int) int {
+	if b > 0 {
+		return b
+	}
+	return testConfig("").MaxContentBytes
+}
