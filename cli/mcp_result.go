@@ -20,11 +20,44 @@ func mcpResult(toolName string, raw json.RawMessage, budget int, main []any) (re
 		return nil, false
 	}
 	raw = json.RawMessage(bytes.TrimSpace(raw))
+	if result, ok := structuredString(raw, budget); ok {
+		return result, true
+	}
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(raw, &fields) == nil {
 		return mcpResultObject(raw, fields, budget)
 	}
 	return mcpContentList(raw, budget, main)
+}
+
+// structuredString handles a tool_response that is a JSON string holding an object or
+// array. Claude Code passes structuredContent that way and shows the model exactly that;
+// the probe carries all its keys and values, as TrustGate sends it.
+func structuredString(raw json.RawMessage, budget int) (map[string]any, bool) {
+	var text string
+	if len(raw) == 0 || raw[0] != '"' || json.Unmarshal(raw, &text) != nil {
+		return nil, false
+	}
+	dec := json.NewDecoder(strings.NewReader(text))
+	dec.UseNumber()
+	var value any
+	if dec.Decode(&value) != nil || dec.More() {
+		return nil, false
+	}
+	switch value.(type) {
+	case map[string]any, []any:
+	default:
+		return nil, false
+	}
+	probe := strings.Join(collectParts(value, nil), "\n")
+	if strings.TrimSpace(probe) == "" {
+		return nil, false
+	}
+	result := map[string]any{"content": []any{map[string]any{"type": "text", "text": probe}}}
+	if enc, _ := json.Marshal(result); len(enc) > budget {
+		return nil, false
+	}
+	return result, true
 }
 
 // mcpContentList handles a bare content array: the blocks, wrapped as {"content": blocks}.
